@@ -32,9 +32,6 @@ importers:
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.2
-      zod:
-        specifier: ^3.24.1
-        version: 3.24.1
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
