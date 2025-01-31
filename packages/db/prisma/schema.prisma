@@ -8,11 +8,11 @@ datasource db {
 }
 
 model User {
-  id       String @id @default(uuid())
+  id       String  @id @default(uuid())
   email    String
   password String
   name     String
-  photo    String
+  photo    String?
   rooms    Room[]
   chats    Chat[]
 }
@@ -23,7 +23,7 @@ model Room {
   createdAt DateTime @default(now())
   admin     User     @relation(fields: [adminId], references: [id])
   adminId   String
-  chats      Chat[]
+  chats     Chat[]
 }
 
 model Chat {
