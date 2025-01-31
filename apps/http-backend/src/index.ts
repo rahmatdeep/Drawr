@@ -30,11 +30,11 @@ app.post("/signup", (req, res) => {
     return;
   }
 
-  const { name, username, password } = result.data;
+  const { email, username, password } = result.data;
 
   res.status(201).json({
     message: "Signup successful",
-    user: { username, name },
+    user: { username, email },
   });
 });
 
