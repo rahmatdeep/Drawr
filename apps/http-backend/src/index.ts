@@ -112,17 +112,27 @@ app.post("/room", authMiddleware, async (req, res) => {
   const userId = req.userId;
 
   const { name } = parsedData.data;
+  try {
+    const room = await prismaClient.room.create({
+      data: {
+        slug: parsedData.data.name,
+        adminId: userId,
+      },
+    });
 
-  const room = await prismaClient.room.create({
-    data: {
-      slug: parsedData.data.name,
-      adminId: userId,
-    },
-  });
-
-  res.json({
-    roomId: room.id,
-  });
+    res.json({
+      roomId: room.id,
+    });
+  } catch (e: unknown) {
+    const error = e as { code?: string; message?: string };
+    if (error.code === "P2002") {
+      res.status(409).json({ message: "Room with this name already exsists" });
+      return;
+    }
+    res.status(500).json({
+      message: "Something went wrong",
+    });
+  }
 });
 
 app.listen(3001, () => {
