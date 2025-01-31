@@ -23,6 +23,9 @@ importers:
       '@repo/backend-common':
         specifier: workspace:*
         version: link:../../packages/backend-common
+      '@repo/common':
+        specifier: workspace:*
+        version: link:../../packages/common
       express:
         specifier: ^4.21.2
         version: 4.21.2
@@ -107,6 +110,16 @@ importers:
       '@types/node':
         specifier: ^22.12.0
         version: 22.12.0
+
+  packages/common:
+    dependencies:
+      zod:
+        specifier: ^3.24.1
+        version: 3.24.1
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
 
   packages/eslint-config:
     devDependencies:
