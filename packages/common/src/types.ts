@@ -7,7 +7,7 @@ export const signupSchema = z.object({
 });
 
 export const signinSchema = signupSchema.pick({
-  username: true,
+  email: true,
   password: true,
 });
 
