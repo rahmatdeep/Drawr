@@ -20,6 +20,9 @@ importers:
 
   apps/http-backend:
     dependencies:
+      '@repo/backend-common':
+        specifier: workspace:*
+        version: link:../../packages/backend-common
       express:
         specifier: ^4.21.2
         version: 4.21.2
@@ -76,6 +79,9 @@ importers:
 
   apps/ws-backend:
     dependencies:
+      '@repo/backend-common':
+        specifier: workspace:*
+        version: link:../../packages/backend-common
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.2
@@ -92,6 +98,15 @@ importers:
       '@types/ws':
         specifier: ^8.5.14
         version: 8.5.14
+
+  packages/backend-common:
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.12.0
+        version: 22.12.0
 
   packages/eslint-config:
     devDependencies:
@@ -480,6 +495,9 @@ packages:
 
   '@types/node@22.10.10':
     resolution: {integrity: sha512-X47y/mPNzxviAGY5TcYPtYL8JsY3kAq2n8fMmKoRCxq/c4v4pyGNCzM2R6+M5/umG4ZfHuT+sgqDYqWc9rJ6ww==}
+
+  '@types/node@22.12.0':
+    resolution: {integrity: sha512-Fll2FZ1riMjNmlmJOdAyY5pUbkftXslB5DgEzlIuNaiWhXd00FhWxVC/r4yV/4wBb9JfImTu+jiSvXTkJ7F/gA==}
 
   '@types/qs@6.9.18':
     resolution: {integrity: sha512-kK7dgTYDyGqS+e2Q4aK9X3D7q234CIZ1Bv0q/7Z5IwRDoADNU81xXJK/YVyLbLTZCoIwUoDoffFeF+p/eIklAA==}
@@ -2666,6 +2684,10 @@ snapshots:
   '@types/ms@2.1.0': {}
 
   '@types/node@22.10.10':
+    dependencies:
+      undici-types: 6.20.0
+
+  '@types/node@22.12.0':
     dependencies:
       undici-types: 6.20.0
 

@@ -18,6 +18,7 @@
   "description": "",
   "dependencies": {
     "jsonwebtoken": "^9.0.2",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "@repo/backend-common": "workspace:*"
   }
 }
