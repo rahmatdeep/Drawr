@@ -135,14 +135,14 @@ app.post("/room", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/chats/:roomId", authMiddleware, async (req, res) => {
+app.get("/chats/:roomId", async (req, res) => {
   const roomId = Number(req.params.roomId);
   const messages = await prismaClient.chat.findMany({
     where: {
       roomId,
     },
     orderBy: {
-      id: "desc",
+      id: "asc",
     },
     take: 50,
   });

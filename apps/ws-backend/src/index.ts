@@ -28,20 +28,22 @@ function checkUser(token: string): string | null {
 wss.on("connection", function (ws, req) {
   const url = req.url;
   if (!url || !url.includes("?")) {
-    ws.send("Unauthorized");
+    ws.send(JSON.stringify({ message: "Unauthorized, URL is wrong" }));
     setTimeout(() => ws.close(), 100);
     return;
   }
   const queryParams = new URLSearchParams(url.split("?")[1]);
   const token = queryParams.get("token");
   if (!token) {
-    ws.send("Unauthorized");
+    ws.send(JSON.stringify({ message: "Unauthorized, token is not present" }));
     setTimeout(() => ws.close(), 100);
     return;
   }
   const userId = checkUser(token);
   if (!userId) {
-    ws.send("Unauthorized");
+    ws.send(
+      JSON.stringify({ message: "Unauthorized, userid not present in token" })
+    );
     setTimeout(() => ws.close(), 100);
     return;
   }
@@ -57,6 +59,9 @@ wss.on("connection", function (ws, req) {
     if (parsedData.type === "join_room") {
       const user = users.find((x) => x.ws === ws);
       user?.rooms.push(parsedData.roomId);
+      ws.send(
+        JSON.stringify({ message: `You have joined room ${parsedData.roomId}` })
+      );
     }
     if (parsedData.type === "leave_room") {
       const user = users.find((x) => x.ws === ws);
@@ -72,7 +77,7 @@ wss.on("connection", function (ws, req) {
         (user) => user.userId === userId && user.rooms.includes(roomId)
       );
       if (!isUserInRoom) {
-        ws.send("Unauthorized");
+        ws.send(JSON.stringify({ message: "Unauthorized, wrong room" }));
         setTimeout(() => ws.close(), 100);
         return;
       }
