@@ -19,6 +19,10 @@ export function RoomCanvasComponent({ roomId }: { roomId: string }) {
         })
       );
     };
+
+    return () => {
+      ws.close();
+    };
   }, []);
 
   if (!socket) {

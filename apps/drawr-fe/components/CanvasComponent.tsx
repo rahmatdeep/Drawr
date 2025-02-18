@@ -14,7 +14,7 @@ export function CanvasComponent({
     if (canvasRef.current && roomId) {
       initDraw(canvasRef.current, roomId, socket);
     }
-  }, [canvasRef]);
+  }, [roomId, socket]);
 
   return (
     <div>
