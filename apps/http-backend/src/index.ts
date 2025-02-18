@@ -9,6 +9,7 @@ import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/backend-common/config";
 import { prismaClient } from "@repo/db/client";
 import bcrypt from "bcrypt";
+import cors from "cors";
 
 const app = express();
 
@@ -21,6 +22,7 @@ declare global {
 }
 
 app.use(express.json());
+app.use(cors());
 
 app.post("/signup", async (req, res) => {
   const parsedData = signupSchema.safeParse(req.body);
