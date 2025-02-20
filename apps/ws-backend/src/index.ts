@@ -91,7 +91,7 @@ wss.on("connection", function (ws, req) {
       });
 
       users.forEach((user) => {
-        if (user.rooms.includes(roomId)) {
+        if (user.rooms.includes(roomId) && user.ws !== ws) {
           user.ws.send(
             JSON.stringify({
               type: "chat",

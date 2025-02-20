@@ -3,7 +3,7 @@ import { HTTP_BACKEND } from "../config";
 
 type Shape =
   | {
-      type: "rect";
+      type: "rectangle";
       x: number;
       y: number;
       width: number;
@@ -53,7 +53,13 @@ export async function initDraw(
     clicked = false;
     const width = e.clientX - startX;
     const height = e.clientY - startY;
-    const shape: Shape = { type: "rect", x: startX, y: startY, height, width };
+    const shape: Shape = {
+      type: "rectangle",
+      x: startX,
+      y: startY,
+      height,
+      width,
+    };
     exsistingShapes.push(shape);
     socket.send(
       JSON.stringify({
@@ -83,7 +89,7 @@ function clearCanvas(exsistingShapes: Shape[], canvas: HTMLCanvasElement) {
   ctx.strokeStyle = "rgba(255, 255, 255)";
 
   exsistingShapes.map((shape) => {
-    if (shape.type === "rect") {
+    if (shape.type === "rectangle") {
       ctx.strokeStyle = "rgba(255, 255, 255)";
       ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
     } else if (shape.type === "circle") {
