@@ -171,16 +171,20 @@ app
   .get(authMiddleware, async (req, res) => {
     const userId = req.userId;
     try {
-      const joinedRooms = await prismaClient.user.findUnique({
+      const user = await prismaClient.user.findUnique({
         where: {
           id: userId,
         },
         select: {
-          roomsJoined: true,
+          roomsJoined: {
+            select: {
+              room: true,
+            },
+          },
         },
       });
       res.json({
-        joinedRooms,
+        user,
       });
     } catch (e) {
       res.status(500).json({
