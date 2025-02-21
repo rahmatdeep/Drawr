@@ -107,18 +107,18 @@ export class Game {
     if (selectedTool === "rectangle") {
       shape = {
         type: "rectangle",
-        x: this.startX,
-        y: this.startY,
-        height,
-        width,
+        x: Math.min(this.startX, e.clientX),
+        y: Math.min(this.startY, e.clientY),
+        height: Math.abs(height),
+        width: Math.abs(width),
       };
     } else if (selectedTool === "circle") {
-      const radius = Math.max(height, width) / 2;
+      const radius = Math.sqrt(height ** 2 + width ** 2) / 2;
       shape = {
         type: "circle",
         radius,
-        centerX: this.startX + radius,
-        centerY: this.startY + radius,
+        centerX: this.startX + width / 2,
+        centerY: this.startY + height / 2,
       };
     }
     if (!shape) {
@@ -134,7 +134,7 @@ export class Game {
       })
     );
 
-    this.clearCanvas()
+    this.clearCanvas();
   };
   mouseMoveHandler = (e: MouseEvent) => {
     if (this.clicked) {
@@ -143,13 +143,17 @@ export class Game {
       this.clearCanvas();
       this.ctx.strokeStyle = "rgba(255, 255, 255)";
 
-      const selectedTool = this.selectedTool;
-      if (selectedTool === "rectangle") {
-        this.ctx.strokeRect(this.startX, this.startY, width, height);
-      } else if (selectedTool === "circle") {
-        const radius = Math.max(width, height) / 2;
-        const centerX = this.startX + radius;
-        const centerY = this.startY + radius;
+      if (this.selectedTool === "rectangle") {
+        this.ctx.strokeRect(
+          Math.min(this.startX, e.clientX),
+          Math.min(this.startY, e.clientY),
+          Math.abs(width),
+          Math.abs(height)
+        );
+      } else if (this.selectedTool === "circle") {
+        const radius = Math.sqrt(width ** 2 + height ** 2) / 2;
+        const centerX = this.startX + width / 2;
+        const centerY = this.startY + height / 2;
         this.ctx.beginPath();
         this.ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
         this.ctx.stroke();
