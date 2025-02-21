@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { number, z } from "zod";
 
 export const signupSchema = z.object({
   email: z.string().email(),
@@ -13,4 +13,12 @@ export const signinSchema = signupSchema.pick({
 
 export const createRoomSchema = z.object({
   name: z.string().min(3).max(20),
+});
+
+export const joinRoomsSchema = z.object({
+  roomId: z.string(),
+});
+
+export const leaveRoomsSchema = z.object({
+  roomId: z.string(),
 });

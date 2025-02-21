@@ -2,6 +2,8 @@ import express from "express";
 import { authMiddleware } from "./middleware";
 import {
   createRoomSchema,
+  joinRoomsSchema,
+  leaveRoomsSchema,
   signinSchema,
   signupSchema,
 } from "@repo/common/types";
@@ -137,7 +139,7 @@ app.post("/room", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/chats/:roomId", async (req, res) => {
+app.get("/chats/:roomId", authMiddleware, async (req, res) => {
   const roomId = Number(req.params.roomId);
   const messages = await prismaClient.chat.findMany({
     where: {
@@ -153,7 +155,7 @@ app.get("/chats/:roomId", async (req, res) => {
   });
 });
 
-app.get("/room/:slug", async (req, res) => {
+app.get("/room/:slug", authMiddleware, async (req, res) => {
   const slug = req.params.slug;
   const room = await prismaClient.room.findFirst({
     where: {
@@ -163,6 +165,83 @@ app.get("/room/:slug", async (req, res) => {
 
   res.json({ room });
 });
+
+app
+  .route("/rooms")
+  .get(authMiddleware, async (req, res) => {
+    const userId = req.userId;
+    try {
+      const joinedRooms = await prismaClient.user.findUnique({
+        where: {
+          id: userId,
+        },
+        select: {
+          roomsJoined: true,
+        },
+      });
+      res.json({
+        joinedRooms,
+      });
+    } catch (e) {
+      res.status(500).json({
+        message: "Something went wrong",
+      });
+    }
+  })
+  .post(authMiddleware, async (req, res) => {
+    const parsedData = joinRoomsSchema.safeParse(req.body);
+
+    if (!parsedData.success) {
+      res.status(400).json({
+        message: "Validation Failed",
+        error: parsedData.error.format(),
+      });
+      return;
+    }
+    try {
+      const userRoom = await prismaClient.userRooms.create({
+        data: {
+          userId: req.userId,
+          roomId: Number(parsedData.data.roomId),
+        },
+      });
+
+      res.json({
+        userRoom,
+      });
+    } catch (e) {
+      res.status(500).json({
+        message: "something went wrong",
+      });
+    }
+  })
+  .delete(authMiddleware, async (req, res) => {
+    const parsedData = leaveRoomsSchema.safeParse(req.body);
+    if (!parsedData.success) {
+      res.status(400).json({
+        message: "Validation Failed",
+        error: parsedData.error.format(),
+      });
+      return;
+    }
+    try {
+      await prismaClient.userRooms.delete({
+        where: {
+          userId_roomId: {
+            userId: req.userId,
+            roomId: Number(parsedData.data.roomId),
+          },
+        },
+      });
+      res.json({
+        message: "Success",
+      });
+    } catch (e) {
+      res.status(500).json({
+        message: "Something went wrong",
+      });
+    }
+  });
 
 app.listen(3001, () => {
   console.log("http server is listening on port 3000");
