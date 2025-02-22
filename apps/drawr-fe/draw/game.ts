@@ -1,5 +1,6 @@
 import { generateId } from "@/utils/generateId";
 import { getExsistingShapes } from "./http";
+import { pointToLineDistance } from "@/utils/pointToLineDistance";
 
 type Tool = "circle" | "rectangle" | "pencil" | "eraser";
 
@@ -142,12 +143,16 @@ export class Game {
           );
           shouldKeep = dist > element.shape.radius;
         } else if (element.shape.type === "pencil") {
-          shouldKeep = !(
-            e.clientX >= Math.min(element.shape.startX, element.shape.endX) &&
-            e.clientX <= Math.max(element.shape.startX, element.shape.endX) &&
-            e.clientY >= Math.min(element.shape.startY, element.shape.endY) &&
-            e.clientY <= Math.max(element.shape.startY, element.shape.endY)
+          const distance = pointToLineDistance(
+            e.clientX,
+            e.clientY,
+            element.shape.startX,
+            element.shape.startY,
+            element.shape.endX,
+            element.shape.endY
           );
+
+          shouldKeep = distance > 5;
         }
 
         if (!shouldKeep) {
