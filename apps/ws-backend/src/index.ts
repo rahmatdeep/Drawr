@@ -73,6 +73,19 @@ wss.on("connection", function (ws, req) {
     if (parsedData.type === "chat") {
       const roomId = parsedData.roomId;
       const message = parsedData.message;
+      const parsedMessage = JSON.parse(message);
+
+      const userExists = await prismaClient.user.findUnique({
+        where: {
+          id: userId,
+        },
+      });
+
+      if (!userExists) {
+        ws.send(JSON.stringify({ message: "User not found" }));
+        return;
+      }
+
       const isUserInRoom = users.some(
         (user) => user.userId === userId && user.rooms.includes(roomId)
       );
@@ -85,8 +98,9 @@ wss.on("connection", function (ws, req) {
       await prismaClient.chat.create({
         data: {
           roomId,
-          message,
+          message: JSON.stringify(parsedMessage.shape),
           userId,
+          id: parsedMessage.id,
         },
       });
 
@@ -96,6 +110,30 @@ wss.on("connection", function (ws, req) {
             JSON.stringify({
               type: "chat",
               message,
+              roomId,
+            })
+          );
+        }
+      });
+    }
+    if (parsedData.type === "delete_message") {
+      const roomId = parsedData.roomId;
+      const messageId = parsedData.messageId;
+
+      await prismaClient.chat.delete({
+        where: {
+          id: messageId,
+          roomId: roomId,
+        },
+      });
+
+      // Notify other users in the room about deletion
+      users.forEach((user) => {
+        if (user.rooms.includes(roomId) && user.ws !== ws) {
+          user.ws.send(
+            JSON.stringify({
+              type: "delete_message",
+              messageId,
               roomId,
             })
           );
