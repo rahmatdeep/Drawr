@@ -9,6 +9,7 @@ import {
   SlashIcon,
 } from "lucide-react";
 import { Game } from "@/draw/game";
+import { usePageSize } from "@/hooks/usePagesize";
 
 type Tool = "circle" | "rectangle" | "line" | "eraser" | "pencil" | "text";
 
@@ -21,6 +22,42 @@ export function CanvasComponent({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [game, setGame] = useState<Game | null>(null);
+  const pageSize = usePageSize();
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) return;
+
+    // Create a temporary canvas to store the current content
+    const tempCanvas = document.createElement("canvas");
+    const tempCtx = tempCanvas.getContext("2d");
+
+    if (!tempCtx) return;
+
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+
+    // Copy the old drawing to the temporary canvas
+    tempCtx.drawImage(canvas, 0, 0);
+
+    // Resize the main canvas
+    const newWidth = pageSize.width;
+    const newHeight = pageSize.height;
+
+    canvas.width = newWidth;
+    canvas.height = newHeight;
+
+    // Restore the drawing to the resized canvas
+    ctx.drawImage(tempCanvas, 0, 0);
+
+    // Redraw game elements if necessary
+    game?.clearCanvas();
+  }, [pageSize]); // Runs whenever window resizes
+
   const [selectedTool, setSelectedTool] = useState<Tool>("pencil");
   const [textInput, setTextInput] = useState({
     isVisible: false,
@@ -119,8 +156,6 @@ export function CanvasComponent({
     <div className="overflow-hidden h-screen">
       <canvas
         ref={canvasRef}
-        width={window.innerWidth}
-        height={window.innerHeight}
         onClick={(e) => {
           if (selectedTool === "text") {
             setTextInput({
