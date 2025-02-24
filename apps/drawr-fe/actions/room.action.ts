@@ -38,8 +38,8 @@ export async function handleRoom(
       );
       //   roomId = createResponse.data.roomId.toString();
     }
-
-    redirect(`/canvas/${roomName}`);
+    
+    return roomName
   } catch (error) {
     console.error("Error handling room:", error);
     throw error;

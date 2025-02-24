@@ -2,11 +2,13 @@
 
 import { useTransition } from "react";
 import { handleRoom } from "@/actions/room.action";
+import { useRouter } from "next/navigation";
 
 export function RoomForm({ token }: { token: string }) {
   //   const [isPending, startTransition] = useTransition();
   const [isJoiningPending, startJoiningTransition] = useTransition();
   const [isCreatingPending, startCreatingTransition] = useTransition();
+  const router = useRouter();
 
   return (
     <div className="w-full max-w-2xl mx-auto mt-8">
@@ -19,11 +21,13 @@ export function RoomForm({ token }: { token: string }) {
           //   });
           if (type === "join") {
             startJoiningTransition(async () => {
-              await handleRoom(token, roomName, type);
+              const roomSlug = await handleRoom(token, roomName, type);
+              router.push(`canvas/${roomSlug}`);
             });
           } else {
             startCreatingTransition(async () => {
-              await handleRoom(token, roomName, type);
+              const roomSlug = await handleRoom(token, roomName, type);
+              router.push(`canvas/${roomSlug}`);
             });
           }
         }}
