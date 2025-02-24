@@ -188,7 +188,7 @@ export class Game {
 
         if (element.shape.type === "rectangle") {
           const rect = element.shape;
-          const tolerance = 5; 
+          const tolerance = 5;
 
           const distToTop = pointToLineDistance(
             e.clientX,
@@ -233,11 +233,18 @@ export class Game {
             distToLeft <= tolerance
           );
         } else if (element.shape.type === "circle") {
+          // Calculate distance from click to center of circle
           const dist = Math.sqrt(
             (e.clientX - element.shape.centerX) ** 2 +
               (e.clientY - element.shape.centerY) ** 2
           );
-          shouldKeep = dist > element.shape.radius;
+
+          // Calculate how far the click is from the circle's perimeter
+          const distanceFromPerimeter = Math.abs(dist - element.shape.radius);
+
+          // Only delete if we're close to the perimeter
+          const tolerance = 5; // Distance in pixels that counts as "on the line"
+          shouldKeep = distanceFromPerimeter > tolerance;
         } else if (element.shape.type === "line") {
           const distance = pointToLineDistance(
             e.clientX,
