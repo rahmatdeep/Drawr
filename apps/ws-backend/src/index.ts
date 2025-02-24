@@ -62,6 +62,31 @@ wss.on("connection", function (ws, req) {
       ws.send(
         JSON.stringify({ message: `You have joined room ${parsedData.roomId}` })
       );
+
+      // Get usernames for all users in this room
+      const roomUsers = await Promise.all(
+        users
+          .filter((u) => u.rooms.includes(parsedData.roomId))
+          .map(async (u) => {
+            const userInfo = await prismaClient.user.findUnique({
+              where: { id: u.userId },
+              select: { username: true },
+            });
+            return userInfo?.username;
+          })
+      );
+
+      // Broadcast to all users in the room
+      users.forEach((u) => {
+        if (u.rooms.includes(parsedData.roomId)) {
+          u.ws.send(
+            JSON.stringify({
+              type: "room_users",
+              users: roomUsers,
+            })
+          );
+        }
+      });
     }
     if (parsedData.type === "leave_room") {
       const user = users.find((x) => x.ws === ws);
@@ -69,6 +94,33 @@ wss.on("connection", function (ws, req) {
         return;
       }
       user.rooms = user.rooms.filter((x) => x !== parsedData.roomId);
+      ws.send(
+        JSON.stringify({ message: `You have left room ${parsedData.roomId}` })
+      );
+      // Get usernames for remaining users in the room
+      const roomUsers = await Promise.all(
+        users
+          .filter((u) => u.rooms.includes(parsedData.roomId))
+          .map(async (u) => {
+            const userInfo = await prismaClient.user.findUnique({
+              where: { id: u.userId },
+              select: { username: true },
+            });
+            return userInfo?.username;
+          })
+      );
+
+      // Broadcast updated user list to remaining users in the room
+      users.forEach((u) => {
+        if (u.rooms.includes(parsedData.roomId)) {
+          u.ws.send(
+            JSON.stringify({
+              type: "room_users",
+              users: roomUsers,
+            })
+          );
+        }
+      });
     }
     if (parsedData.type === "chat") {
       const roomId = parsedData.roomId;
