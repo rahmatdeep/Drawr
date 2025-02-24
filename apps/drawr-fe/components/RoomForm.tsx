@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { handleRoom } from "@/actions/room.action";
 import { useRouter } from "next/navigation";
 
@@ -8,6 +8,8 @@ export function RoomForm({ token }: { token: string }) {
   //   const [isPending, startTransition] = useTransition();
   const [isJoiningPending, startJoiningTransition] = useTransition();
   const [isCreatingPending, startCreatingTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const roomNameRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
 
   return (
@@ -16,18 +18,29 @@ export function RoomForm({ token }: { token: string }) {
         action={async (formData: FormData) => {
           const roomName = formData.get("roomName") as string;
           const type = formData.get("type") as string;
+          setError(null);
           //   startTransition(async () => {
           //     await handleRoom(token, roomName, type);
           //   });
           if (type === "join") {
             startJoiningTransition(async () => {
-              await handleRoom(token, roomName, type);
-              router.push(`canvas/${roomName}`);
+              const error = await handleRoom(token, roomName, type);
+              if (!error) {
+                router.push(`canvas/${roomName}`);
+              } else {
+                setError(error);
+                console.log(error);
+              }
             });
           } else {
             startCreatingTransition(async () => {
-              await handleRoom(token, roomName, type);
-              router.push(`canvas/${roomName}`);
+              const error = await handleRoom(token, roomName, type);
+              if (!error) {
+                router.push(`canvas/${roomName}`);
+              } else {
+                setError(error);
+                console.log(error);
+              }
             });
           }
         }}
@@ -37,12 +50,17 @@ export function RoomForm({ token }: { token: string }) {
           <input
             type="text"
             name="roomName"
-            placeholder="Enter a room name to join or create a new one"
-            className="w-full px-6 py-4 text-lg bg-gray-900/50 border-2 border-gray-700 rounded-xl 
-                     focus:outline-none focus:border-white transition-all duration-300
-                     placeholder:text-gray-500 text-white caret-white"
+            placeholder={
+              error || "Enter a room name to join or create a new one"
+            }
+            className={`w-full px-6 py-4 text-lg bg-gray-900/50 border-2 border-gray-700 rounded-xl 
+                     focus:outline-none focus:border-white ${error ? `border-red-600` : `border-gray-700 focus:border-white`} transition-all duration-300
+                     ${error ? `placeholder:text-red-500` : `placeholder:text-gray-500`} text-white caret-white`}
             required
             autoFocus
+            onFocus={() => setError(null)}
+            onChange={() => setError(null)}
+            ref={roomNameRef}
           />
           <div className="flex items-center gap-4 mt-3">
             <button
