@@ -2,6 +2,7 @@ import express from "express";
 import { authMiddleware } from "./middleware";
 import {
   createRoomSchema,
+  deleteRoomSchema,
   joinRoomsSchema,
   leaveRoomsSchema,
   signinSchema,
@@ -55,7 +56,7 @@ app.post("/signup", async (req, res) => {
   } catch (e: unknown) {
     const error = e as { code?: string; message?: string };
     if (error.code === "P2002") {
-      res.status(409).json({ message: "Email already exsists" });
+      res.status(409).json({ message: "Email already exists" });
       return;
     }
     res.status(500).json({
@@ -82,7 +83,7 @@ app.post("/signin", async (req, res) => {
     if (!user) {
       res
         .status(401)
-        .json({ message: "user with this email id does not exsist" });
+        .json({ message: "User with this email ID does not exist" });
       return;
     }
 
@@ -95,7 +96,7 @@ app.post("/signin", async (req, res) => {
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET);
 
-    res.json({ message: "Login Successful", token });
+    res.json({ message: "Login Successful", token, userId: user.id });
   } catch (e) {
     console.log(e);
     res.status(500).json({ message: "Something went wrong" });
@@ -124,13 +125,20 @@ app.post("/room", authMiddleware, async (req, res) => {
       },
     });
 
+    await prismaClient.userRooms.create({
+      data: {
+        userId: req.userId,
+        roomId: room.id,
+      },
+    });
+
     res.json({
       roomId: room.id,
     });
   } catch (e: unknown) {
     const error = e as { code?: string; message?: string };
     if (error.code === "P2002") {
-      res.status(409).json({ message: "Room with this name already exsists" });
+      res.status(409).json({ message: "Room with this name already exists" });
       return;
     }
     res.status(500).json({
@@ -152,6 +160,36 @@ app.get("/chats/:roomId", async (req, res) => {
   res.json({
     messages,
   });
+});
+
+app.delete("/room", authMiddleware, async (req, res) => {
+  const parsedData = deleteRoomSchema.safeParse(req.body);
+
+  if (!parsedData.success) {
+    res.status(400).json({
+      message: "Validation Failed",
+      error: parsedData.error.format(),
+    });
+    return;
+  }
+  try {
+    const roomId = Number(parsedData.data.roomId);
+    const room = await prismaClient.room.findUnique({
+      where: {
+        id: roomId,
+      },
+    });
+    if (room?.adminId !== req.userId) {
+      res.status(403).json({ message: "Not authorized to delete this room" });
+      return;
+    }
+    await prismaClient.room.delete({
+      where: { id: roomId },
+    });
+    res.json({ message: "Room deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Something went wrong" });
+  }
 });
 
 app.get("/room/:slug", authMiddleware, async (req, res) => {
@@ -182,9 +220,7 @@ app
           },
         },
       });
-      res.json({
-        user,
-      });
+      res.json(user?.roomsJoined);
     } catch (e) {
       res.status(500).json({
         message: "Something went wrong",
@@ -247,5 +283,5 @@ app
   });
 
 app.listen(3001, () => {
-  console.log("http server is listening on port 3001");
+  console.log("HTTP server is listening on port 3001");
 });
