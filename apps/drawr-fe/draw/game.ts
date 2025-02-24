@@ -168,7 +168,7 @@ export class Game {
           this.ctx.lineTo(point.x, point.y);
         }
         this.ctx.stroke();
-        this.ctx.closePath()
+        this.ctx.closePath();
       } else if (element.shape.type === "text") {
         this.ctx.fillStyle = "white";
         this.ctx.font = "20px Arial";
@@ -187,11 +187,50 @@ export class Game {
         let shouldKeep = true;
 
         if (element.shape.type === "rectangle") {
+          const rect = element.shape;
+          const tolerance = 5; 
+
+          const distToTop = pointToLineDistance(
+            e.clientX,
+            e.clientY,
+            rect.x,
+            rect.y,
+            rect.x + rect.width,
+            rect.y
+          );
+
+          const distToRight = pointToLineDistance(
+            e.clientX,
+            e.clientY,
+            rect.x + rect.width,
+            rect.y,
+            rect.x + rect.width,
+            rect.y + rect.height
+          );
+
+          const distToBottom = pointToLineDistance(
+            e.clientX,
+            e.clientY,
+            rect.x,
+            rect.y + rect.height,
+            rect.x + rect.width,
+            rect.y + rect.height
+          );
+
+          const distToLeft = pointToLineDistance(
+            e.clientX,
+            e.clientY,
+            rect.x,
+            rect.y,
+            rect.x,
+            rect.y + rect.height
+          );
+
           shouldKeep = !(
-            e.clientX >= element.shape.x &&
-            e.clientX <= element.shape.x + element.shape.width &&
-            e.clientY >= element.shape.y &&
-            e.clientY <= element.shape.y + element.shape.height
+            distToTop <= tolerance ||
+            distToRight <= tolerance ||
+            distToBottom <= tolerance ||
+            distToLeft <= tolerance
           );
         } else if (element.shape.type === "circle") {
           const dist = Math.sqrt(
