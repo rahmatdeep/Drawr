@@ -233,17 +233,12 @@ export class Game {
             distToLeft <= tolerance
           );
         } else if (element.shape.type === "circle") {
-          // Calculate distance from click to center of circle
           const dist = Math.sqrt(
             (e.clientX - element.shape.centerX) ** 2 +
               (e.clientY - element.shape.centerY) ** 2
           );
-
-          // Calculate how far the click is from the circle's perimeter
           const distanceFromPerimeter = Math.abs(dist - element.shape.radius);
-
-          // Only delete if we're close to the perimeter
-          const tolerance = 5; // Distance in pixels that counts as "on the line"
+          const tolerance = 5;
           shouldKeep = distanceFromPerimeter > tolerance;
         } else if (element.shape.type === "line") {
           const distance = pointToLineDistance(
@@ -257,7 +252,6 @@ export class Game {
 
           shouldKeep = distance > 5;
         } else if (element.shape.type === "pencil") {
-          // check if the e.clientX and e.clientY is included in the points array or if e.clientX and e.clientY are like 10px away from the points
           const isPointInPoints = element.shape.points.some(
             (point) =>
               (point.x === e.clientX && point.y === e.clientY) ||
