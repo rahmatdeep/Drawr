@@ -6,10 +6,28 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 async function getRoom(slug: string, token: string) {
+  const checkInRoom = await axios.get(`${HTTP_BACKEND}/rooms`, {
+    headers: {
+      Authorization: `${token}`,
+    },
+  });
+  const exists = checkInRoom.data.some(
+    ({ room }: { room: { slug: string } }) => room.slug === slug
+  );
   const roomResponse = await axios.get(`${HTTP_BACKEND}/room/${slug}`, {
     headers: { Authorization: `${token}` },
   });
-  return roomResponse.data.room.id;
+  const roomId = roomResponse.data.room.id;
+  if (!exists) {
+    await axios.post(
+      `${HTTP_BACKEND}/rooms`,
+      { roomId: roomId.toString() },
+      {
+        headers: { Authorization: `${token}` },
+      }
+    );
+  }
+  return roomId;
 }
 
 export default async function Canvas({
