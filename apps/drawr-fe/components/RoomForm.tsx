@@ -21,13 +21,13 @@ export function RoomForm({ token }: { token: string }) {
           //   });
           if (type === "join") {
             startJoiningTransition(async () => {
-              const roomSlug = await handleRoom(token, roomName, type);
-              router.push(`canvas/${roomSlug}`);
+              await handleRoom(token, roomName, type);
+              router.push(`canvas/${roomName}`);
             });
           } else {
             startCreatingTransition(async () => {
-              const roomSlug = await handleRoom(token, roomName, type);
-              router.push(`canvas/${roomSlug}`);
+              await handleRoom(token, roomName, type);
+              router.push(`canvas/${roomName}`);
             });
           }
         }}

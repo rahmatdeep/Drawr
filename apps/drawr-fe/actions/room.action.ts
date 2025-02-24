@@ -2,7 +2,6 @@
 
 import { HTTP_BACKEND } from "@/config";
 import axios from "axios";
-import { redirect } from "next/navigation";
 
 export async function handleRoom(
   token: string,
