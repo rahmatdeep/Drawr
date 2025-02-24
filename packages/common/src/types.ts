@@ -10,7 +10,9 @@ export const signinSchema = signupSchema.pick({
   email: true,
   password: true,
 });
-
+export const deleteRoomSchema = z.object({
+  roomId: z.string(),
+});
 export const createRoomSchema = z.object({
   name: z.string().min(3).max(20),
 });
