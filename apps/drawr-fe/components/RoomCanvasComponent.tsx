@@ -4,6 +4,7 @@ import { WS_BACKEND } from "@/config";
 import { useEffect, useState } from "react";
 import { CanvasComponent } from "./CanvasComponent";
 import { UserAvatar } from "./AvatarComponent";
+import { WSLoader } from "./WSLoader";
 
 export function RoomCanvasComponent({
   roomId,
@@ -64,7 +65,7 @@ export function RoomCanvasComponent({
   }, []);
 
   if (!socket) {
-    return <div>Connecting to server</div>;
+    return <WSLoader />;
   }
 
   return (
