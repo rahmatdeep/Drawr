@@ -17,7 +17,7 @@ export default function Home() {
           <p className="text-lg text-neutral-600 mb-8 max-w-md mx-auto">
             Collaborative sketching reimagined for modern teams
           </p>
-          <Link href={"/signup"}>
+          <Link href={"/signin"}>
             <Button
               size="lg"
               variant="primary"

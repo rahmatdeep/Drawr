@@ -2,7 +2,7 @@ import { generateId } from "@/utils/generateId";
 import { getExsistingShapes } from "./http";
 import { pointToLineDistance } from "@/utils/pointToLineDistance";
 
-type Tool = "circle" | "rectangle" | "pencil" | "eraser";
+type Tool = "circle" | "rectangle" | "line" | "eraser" | "pencil" | "text";
 
 type Shape =
   | {
@@ -27,11 +27,29 @@ type Shape =
   | {
       id?: number;
       shape: {
-        type: "pencil";
+        type: "line";
         startX: number;
         startY: number;
         endX: number;
         endY: number;
+      };
+    }
+  | {
+      id?: number;
+      shape: {
+        type: "pencil";
+        points: { x: number; y: number }[];
+      };
+    }
+  | {
+      id?: number;
+      shape: {
+        type: "text";
+        text: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
       };
     };
 
@@ -45,6 +63,7 @@ export class Game {
   private startX: number = 0;
   private startY: number = 0;
   private selectedTool = "circle";
+  private currentPath: { x: number; y: number }[] = [];
   constructor(canvas: HTMLCanvasElement, roomId: string, socket: WebSocket) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
@@ -59,6 +78,29 @@ export class Game {
 
   setTool(tool: Tool) {
     this.selectedTool = tool;
+  }
+
+  addText(text: string, x: number, y: number) {
+    const newShape: Shape = {
+      id: generateId(),
+      shape: {
+        type: "text",
+        text,
+        x,
+        y: y + 10,
+        width: this.ctx.measureText(text).width + 20,
+        height: 30,
+      },
+    };
+    this.exsistingShapes.push(newShape);
+    this.socket.send(
+      JSON.stringify({
+        type: "chat",
+        message: JSON.stringify(newShape),
+        roomId: Number(this.roomId),
+      })
+    );
+    this.clearCanvas();
   }
 
   async init() {
@@ -110,12 +152,27 @@ export class Game {
         );
         this.ctx.stroke();
         this.ctx.closePath();
-      } else if (element.shape.type === "pencil") {
+      } else if (element.shape.type === "line") {
         this.ctx.beginPath();
         this.ctx.moveTo(element.shape.startX, element.shape.startY);
         this.ctx.lineTo(element.shape.endX, element.shape.endY);
         this.ctx.stroke();
         this.ctx.closePath();
+      } else if (
+        element.shape.type === "pencil" &&
+        element.shape.points?.length > 0
+      ) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(element.shape.points[0].x, element.shape.points[0].y);
+        for (const point of element.shape.points) {
+          this.ctx.lineTo(point.x, point.y);
+        }
+        this.ctx.stroke();
+        this.ctx.closePath()
+      } else if (element.shape.type === "text") {
+        this.ctx.fillStyle = "white";
+        this.ctx.font = "20px Arial";
+        this.ctx.fillText(element.shape.text, element.shape.x, element.shape.y);
       }
     });
   }
@@ -142,7 +199,7 @@ export class Game {
               (e.clientY - element.shape.centerY) ** 2
           );
           shouldKeep = dist > element.shape.radius;
-        } else if (element.shape.type === "pencil") {
+        } else if (element.shape.type === "line") {
           const distance = pointToLineDistance(
             e.clientX,
             e.clientY,
@@ -153,6 +210,22 @@ export class Game {
           );
 
           shouldKeep = distance > 5;
+        } else if (element.shape.type === "pencil") {
+          // check if the e.clientX and e.clientY is included in the points array or if e.clientX and e.clientY are like 10px away from the points
+          const isPointInPoints = element.shape.points.some(
+            (point) =>
+              (point.x === e.clientX && point.y === e.clientY) ||
+              (Math.abs(point.x - e.clientX) < 10 &&
+                Math.abs(point.y - e.clientY) < 10)
+          );
+          shouldKeep = !isPointInPoints;
+        } else if (element.shape.type === "text") {
+          shouldKeep = !(
+            e.clientX >= element.shape.x &&
+            e.clientX <= element.shape.x + element.shape.width &&
+            e.clientY >= element.shape.y - element.shape.height && // Adjust for text baseline
+            e.clientY <= element.shape.y
+          );
         }
 
         if (!shouldKeep) {
@@ -200,17 +273,35 @@ export class Game {
           centerY: this.startY + height / 2,
         },
       };
-    } else if (selectedTool === "pencil") {
+    } else if (selectedTool === "line") {
       newShape = {
         id: generateId(),
         shape: {
-          type: "pencil",
+          type: "line",
           startX: this.startX,
           startY: this.startY,
           endX: e.clientX,
           endY: e.clientY,
         },
       };
+    } else if (selectedTool === "pencil" && this.currentPath.length > 0) {
+      newShape = {
+        id: generateId(),
+        shape: {
+          type: "pencil",
+          points: this.currentPath,
+        },
+      };
+      this.currentPath = []; // Reset path after creating shape
+      this.exsistingShapes.push(newShape);
+      this.socket.send(
+        JSON.stringify({
+          type: "chat",
+          message: JSON.stringify(newShape),
+          roomId: Number(this.roomId),
+        })
+      );
+      return; // Exit early for pencil tool
     }
     if (!newShape) {
       return;
@@ -251,12 +342,23 @@ export class Game {
         this.ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
         this.ctx.stroke();
         this.ctx.closePath();
-      } else if (this.selectedTool === "pencil") {
+      } else if (this.selectedTool === "line") {
         this.ctx.beginPath();
         this.ctx.moveTo(this.startX, this.startY);
         this.ctx.lineTo(e.clientX, e.clientY);
         this.ctx.stroke();
         this.ctx.closePath();
+      } else if (this.selectedTool === "pencil") {
+        this.currentPath.push({ x: e.clientX, y: e.clientY });
+        this.clearCanvas();
+
+        // Draw the current path
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.currentPath[0].x, this.currentPath[0].y);
+        for (const point of this.currentPath) {
+          this.ctx.lineTo(point.x, point.y);
+        }
+        this.ctx.stroke();
       }
     }
   };
