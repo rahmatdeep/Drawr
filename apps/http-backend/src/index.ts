@@ -249,6 +249,11 @@ app
         userRoom,
       });
     } catch (e) {
+      const error = e as { code?: string; message?: string };
+      if (error.code === "P2002") {
+        res.status(409).json({ message: "Room is already joined" });
+        return;
+      }
       res.status(500).json({
         message: "something went wrong",
       });
