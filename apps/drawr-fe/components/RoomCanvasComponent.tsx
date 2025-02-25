@@ -52,14 +52,6 @@ export function RoomCanvasComponent({
 
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: "leave_room",
-            roomId: Number(roomId),
-          })
-        );
-      }
       ws.close();
     };
   }, []);

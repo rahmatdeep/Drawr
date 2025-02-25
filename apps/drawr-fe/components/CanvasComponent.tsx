@@ -32,7 +32,6 @@ export function CanvasComponent({
 
     if (!ctx) return;
 
-    // Create a temporary canvas to store the current content
     const tempCanvas = document.createElement("canvas");
     const tempCtx = tempCanvas.getContext("2d");
 
@@ -41,22 +40,18 @@ export function CanvasComponent({
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
 
-    // Copy the old drawing to the temporary canvas
     tempCtx.drawImage(canvas, 0, 0);
 
-    // Resize the main canvas
     const newWidth = pageSize.width;
     const newHeight = pageSize.height;
 
     canvas.width = newWidth;
     canvas.height = newHeight;
 
-    // Restore the drawing to the resized canvas
     ctx.drawImage(tempCanvas, 0, 0);
 
-    // Redraw game elements if necessary
     game?.clearCanvas();
-  }, [pageSize]); // Runs whenever window resizes
+  }, [pageSize]);
 
   const [selectedTool, setSelectedTool] = useState<Tool>("pencil");
   const [textInput, setTextInput] = useState({
@@ -74,9 +69,8 @@ export function CanvasComponent({
     eraser: "Click to erase",
   };
 
-  // Add text input component
   const FloatingTextInput = () => {
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
       if (inputRef.current) {
