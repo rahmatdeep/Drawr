@@ -5,7 +5,6 @@ import { handleRoom } from "@/actions/room.action";
 import { useRouter } from "next/navigation";
 
 export function RoomForm({ token }: { token: string }) {
-  //   const [isPending, startTransition] = useTransition();
   const [isJoiningPending, startJoiningTransition] = useTransition();
   const [isCreatingPending, startCreatingTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -19,9 +18,6 @@ export function RoomForm({ token }: { token: string }) {
           const roomName = formData.get("roomName") as string;
           const type = formData.get("type") as string;
           setError(null);
-          //   startTransition(async () => {
-          //     await handleRoom(token, roomName, type);
-          //   });
           if (type === "join") {
             startJoiningTransition(async () => {
               const error = await handleRoom(token, roomName, type);
@@ -29,17 +25,15 @@ export function RoomForm({ token }: { token: string }) {
                 router.push(`canvas/${roomName}`);
               } else {
                 setError(error);
-                console.log(error);
               }
             });
-          } else {
+          } else if(type === "create") {
             startCreatingTransition(async () => {
               const error = await handleRoom(token, roomName, type);
               if (!error) {
                 router.push(`canvas/${roomName}`);
               } else {
                 setError(error);
-                console.log(error);
               }
             });
           }

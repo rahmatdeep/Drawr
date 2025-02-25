@@ -36,7 +36,7 @@ export async function handleRoom(
             "Rooms is already joined please enter it from the list below";
         }
       }
-    } else {
+    } else if (type === "create") {
       // Create new room
       try {
         await axios.post(
