@@ -4,8 +4,8 @@ import { HTTP_BACKEND } from "@/config";
 import { Header } from "@/components/Header";
 import axios from "axios";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../api/auth/[...nextauth]/route";
 import { RoomCard } from "@/components/RoomCard";
+import { authOptions } from "@/lib/auth";
 
 type Room = {
   room: {
@@ -29,7 +29,7 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const username = session?.user.email.split("@")[0];
   const usernameCapitalized =
-    username.charAt(0).toUpperCase() + username.slice(1);
+    username!.charAt(0).toUpperCase() + username!.slice(1);
 
   if (!session?.accessToken) {
     redirect("/signin");
@@ -52,8 +52,8 @@ export default async function DashboardPage() {
               <RoomCard
                 key={room.id}
                 room={room}
-                isAdmin={room.adminId === session?.userId}
-                token={session?.accessToken}
+                isAdmin={room.adminId === session?.user.id}
+                token={session.accessToken}
               />
             ))}
           </div>

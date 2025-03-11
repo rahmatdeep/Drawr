@@ -31,18 +31,34 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
         // After successful signup, sign in
         await signInUser(email, password);
-      } catch (error: any) {
+      } catch (e) {
         setIsPending(false);
-        if (error.response?.data.message === "Validation Failed") {
-          const validationErrors = error.response.data.error;
-          const errorMessages = Object.keys(validationErrors)
-            .filter((key) => key !== "_errors")
-            .map((key) => validationErrors[key]._errors)
-            .flat()
-            .join(", ");
-          setError(errorMessages);
+
+        if (axios.isAxiosError(e)) {
+          type ValidationErrorResponse = {
+            message: string;
+            error?: {
+              [key: string]: {
+                _errors: string[];
+              };
+            };
+          };
+
+          const errorData = e.response?.data as ValidationErrorResponse;
+
+          if (errorData?.message === "Validation Failed" && errorData.error) {
+            const validationErrors = errorData.error;
+            const errorMessages = Object.keys(validationErrors)
+              .filter((key) => key !== "_errors")
+              .map((key) => validationErrors[key]._errors)
+              .flat()
+              .join(", ");
+            setError(errorMessages);
+          } else {
+            setError(errorData?.message || "Signup failed");
+          }
         } else {
-          setError(error.response?.data.message || "Signup failed");
+          setError("An unexpected error occurred");
         }
       }
     } else {
@@ -88,7 +104,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                 placeholder="Email"
                 name="email"
                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                onChange={(e) => setError("")}
+                onChange={() => setError("")}
               />
             </div>
             <div>
@@ -97,7 +113,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                 placeholder="Password"
                 name="password"
                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                onChange={(e) => setError("")}
+                onChange={() => setError("")}
               />
             </div>
             {error && <p className="mt-1 text-sm text-red-600">{error}</p>}

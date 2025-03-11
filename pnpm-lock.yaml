@@ -110,43 +110,6 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
 
-  apps/web:
-    dependencies:
-      '@repo/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      axios:
-        specifier: ^1.7.9
-        version: 1.7.9
-      next:
-        specifier: ^15.1.6
-        version: 15.1.6(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      react:
-        specifier: ^19.0.0
-        version: 19.0.0
-      react-dom:
-        specifier: ^19.0.0
-        version: 19.0.0(react@19.0.0)
-    devDependencies:
-      '@repo/eslint-config':
-        specifier: workspace:*
-        version: link:../../packages/eslint-config
-      '@repo/typescript-config':
-        specifier: workspace:*
-        version: link:../../packages/typescript-config
-      '@types/node':
-        specifier: ^22
-        version: 22.10.10
-      '@types/react':
-        specifier: 19.0.8
-        version: 19.0.8
-      '@types/react-dom':
-        specifier: 19.0.3
-        version: 19.0.3(@types/react@19.0.8)
-      typescript:
-        specifier: 5.7.3
-        version: 5.7.3
-
   apps/ws-backend:
     dependencies:
       '@repo/backend-common':
