@@ -1,47 +1,49 @@
 generator client {
-  provider = "prisma-client-js"
+    provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
 }
 
 model User {
-  id           String      @id @default(uuid())
-  email        String      @unique
-  password     String
-  username     String
-  photo        String?
-  roomsCreated Room[]
-  chats        Chat[]
-  roomsJoined  UserRooms[]
+    id                String      @id @default(uuid())
+    email             String      @unique
+    password          String?
+    username          String
+    photo             String?
+    provider          String?
+    providerAccountId String?
+    roomsCreated      Room[]
+    chats             Chat[]
+    roomsJoined       UserRooms[]
 }
 
 model Room {
-  id        Int         @id @default(autoincrement())
-  slug      String      @unique
-  createdAt DateTime    @default(now())
-  admin     User        @relation(fields: [adminId], references: [id])
-  adminId   String
-  chats     Chat[]
-  users     UserRooms[]
+    id        Int         @id @default(autoincrement())
+    slug      String      @unique
+    createdAt DateTime    @default(now())
+    admin     User        @relation(fields: [adminId], references: [id])
+    adminId   String
+    chats     Chat[]
+    users     UserRooms[]
 }
 
 model UserRooms {
-  user   User   @relation(fields: [userId], references: [id])
-  userId String
-  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  roomId Int
+    user   User   @relation(fields: [userId], references: [id])
+    userId String
+    room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+    roomId Int
 
-  @@id([userId, roomId])
+    @@id([userId, roomId])
 }
 
 model Chat {
-  id      Int    @id @default(autoincrement())
-  message String
-  user    User   @relation(fields: [userId], references: [id])
-  userId  String
-  room    Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  roomId  Int
+    id      Int    @id @default(autoincrement())
+    message String
+    user    User   @relation(fields: [userId], references: [id])
+    userId  String
+    room    Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+    roomId  Int
 }
