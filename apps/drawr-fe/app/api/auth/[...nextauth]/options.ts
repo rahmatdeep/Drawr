@@ -1,15 +1,17 @@
-import { NextAuthOptions, Session, User } from "next-auth";
+import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import { HTTP_BACKEND } from "@/config";
 import axios from "axios";
-import { JWT } from "next-auth/jwt";
 
 declare module "next-auth" {
   interface Session {
-    accessToken: string;
+    accessToken?: string;
+    userId: string;
+    provider: string;
     user: {
-      id: string;
       email: string;
+      name: string;
     };
   }
 
@@ -19,9 +21,14 @@ declare module "next-auth" {
     token: string;
   }
 }
+
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -51,19 +58,41 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }: { token: JWT; user: User }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.accessToken = user.token;
         token.userId = user.id;
+        token.provider = account?.provider;
       }
       return token;
     },
-    async session({ session, token }: { session: Session; token: JWT }) {
+    async session({ session, token }) {
       if (session) {
         session.accessToken = token.accessToken as string;
-        session.user.id = token.userId as string;
+        session.userId = token.userId as string;
+        session.provider = token.provider as string;
       }
       return session;
+    },
+    async signIn(params) {
+      const { user, account } = params;
+      if (account?.provider === "google") {
+        try {
+          const response = await axios.post(`${HTTP_BACKEND}/google-auth`, {
+            email: user.email,
+            name: user.name,
+            providerId: user.id,
+          });
+
+          user.token = response.data.token;
+          user.id = response.data.userId;
+          return true;
+        } catch (error) {
+          console.log("Google authentication error: ", error);
+          return false;
+        }
+      }
+      return true;
     },
   },
   pages: {

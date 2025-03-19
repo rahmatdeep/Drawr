@@ -10,7 +10,7 @@ export function IconButton({
 }: {
   icon: ReactNode;
   onClick: () => void;
-  isActivated: boolean;
+  isActivated?: boolean;
   keybind?: string;
   title?: string;
 }) {

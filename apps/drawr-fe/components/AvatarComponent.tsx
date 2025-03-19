@@ -26,7 +26,7 @@ export function UserAvatar({ name, size = "md" }: UserAvatarProps) {
   };
 
   return (
-    <div className="group relative">
+    <div className="group relative cursor-default">
       <div
         className={`
           ${sizeClasses[size]} 

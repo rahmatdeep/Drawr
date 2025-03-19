@@ -7,11 +7,21 @@ import {
   BaselineIcon,
   RectangleHorizontalIcon,
   SlashIcon,
+  HandIcon,
+  MinusIcon,
+  PlusIcon,
 } from "lucide-react";
 import { Game } from "@/draw/game";
 import { usePageSize } from "@/hooks/usePagesize";
 
-type Tool = "circle" | "rectangle" | "line" | "eraser" | "pencil" | "text";
+type Tool =
+  | "circle"
+  | "rectangle"
+  | "line"
+  | "eraser"
+  | "pencil"
+  | "text"
+  | "pan";
 
 export function CanvasComponent({
   roomId,
@@ -21,8 +31,14 @@ export function CanvasComponent({
   socket: WebSocket;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [game, setGame] = useState<Game | null>(null);
+  const gameRef = useRef<Game | null>(null);
   const pageSize = usePageSize();
+  const [selectedColor, setSelectedColor] = useState<string>("white");
+  const zoomOnScroll = false;
+
+  useEffect(() => {
+    gameRef.current?.setStrokeColor(selectedColor);
+  }, [selectedColor]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -50,7 +66,7 @@ export function CanvasComponent({
 
     ctx.drawImage(tempCanvas, 0, 0);
 
-    game?.clearCanvas();
+    gameRef.current?.clearCanvas();
   }, [pageSize]);
 
   const [selectedTool, setSelectedTool] = useState<Tool>("pencil");
@@ -67,6 +83,7 @@ export function CanvasComponent({
     circle: "Click and drag to set size",
     text: "Click anywhere to add text",
     eraser: "Click to erase",
+    pan: "Click and drag to move around",
   };
 
   const FloatingTextInput = () => {
@@ -76,22 +93,36 @@ export function CanvasComponent({
       if (inputRef.current) {
         inputRef.current.focus();
       }
-    }, [textInput.isVisible]);
+    }, []);
 
     return textInput.isVisible ? (
       <input
         ref={inputRef}
         className="fixed bg-transparent text-white outline-none text-lg"
-        style={{ left: textInput.x, top: textInput.y - 10, fontSize: "20px" }}
+        style={{
+          left:
+            textInput.x * gameRef.current!.getScale() +
+            gameRef.current!.getOffsetX(),
+          top:
+            textInput.y * gameRef.current!.getScale() +
+            gameRef.current!.getOffsetY() -
+            10,
+          fontSize: `${20 * gameRef.current!.getScale()}px`,
+          color: selectedColor,
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" && e.currentTarget.value) {
-            game?.addText(e.currentTarget.value, textInput.x, textInput.y);
+            gameRef.current?.addText(
+              e.currentTarget.value,
+              textInput.x,
+              textInput.y
+            );
             setTextInput({ ...textInput, isVisible: false });
-            document.body.style.cursor = "default";
+            document.body.style.cursor = "crosshair";
           }
           if (e.key === "Escape") {
             setTextInput({ ...textInput, isVisible: false });
-            document.body.style.cursor = "default";
+            document.body.style.cursor = "crosshair";
           }
         }}
         onBlur={() => setTextInput({ ...textInput, isVisible: false })}
@@ -100,19 +131,27 @@ export function CanvasComponent({
   };
 
   useEffect(() => {
-    game?.setTool(selectedTool);
-  }, [selectedTool, game]);
+    gameRef.current?.setTool(selectedTool);
+    if (selectedTool === "text") document.body.style.cursor = "text";
+    else if (selectedTool === "eraser")
+      document.body.style.cursor = "url('/circle.png'), auto";
+    else if (selectedTool === "pan") document.body.style.cursor = "grab";
+    else document.body.style.cursor = "crosshair";
+  }, [selectedTool]);
 
   useEffect(() => {
     if (canvasRef.current && roomId) {
-      const g = new Game(canvasRef.current, roomId, socket);
-      setGame(g);
+      gameRef.current = new Game(
+        canvasRef.current,
+        roomId,
+        socket,
+        zoomOnScroll
+      );
     }
-
     return () => {
-      game?.destroy();
+      gameRef.current?.destroy();
     };
-  }, [roomId, socket]);
+  }, [roomId, socket, zoomOnScroll]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -131,10 +170,12 @@ export function CanvasComponent({
           break;
         case "5":
           setSelectedTool("text");
-          document.body.style.cursor = "text";
           break;
         case "6":
           setSelectedTool("eraser");
+          break;
+        case "7":
+          setSelectedTool("pan");
           break;
       }
     };
@@ -150,12 +191,19 @@ export function CanvasComponent({
     <div className="overflow-hidden h-screen">
       <canvas
         ref={canvasRef}
+        onContextMenu={(e) => e.preventDefault()}
         onClick={(e) => {
           if (selectedTool === "text") {
+            const transformedX =
+              (e.clientX - gameRef.current!.getOffsetX()) /
+              gameRef.current!.getScale();
+            const transformedY =
+              (e.clientY - gameRef.current!.getOffsetY()) /
+              gameRef.current!.getScale();
             setTextInput({
               isVisible: true,
-              x: e.clientX,
-              y: e.clientY,
+              x: transformedX,
+              y: transformedY,
             });
           }
         }}
@@ -165,6 +213,11 @@ export function CanvasComponent({
       <div className="fixed top-[5.5rem] left-1/2 -translate-x-1/2 text-white/50 text-sm">
         {toolDescriptions[selectedTool]}
       </div>
+      <ColorBar
+        selectedColor={selectedColor}
+        setSelectedColor={setSelectedColor}
+      />
+      <ZoomBar game={gameRef.current} />
     </div>
   );
 }
@@ -177,13 +230,12 @@ function Topbar({
   setSelectedTool: (shape: Tool) => void;
 }) {
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 flex gap-4 bg-white/5 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20 transition-all duration-300">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 flex gap-4 items-center bg-white/5 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20 transition-all duration-300 cursor-default">
       <IconButton
         isActivated={selectedTool === "pencil"}
         icon={<PencilIcon />}
         onClick={() => {
           setSelectedTool("pencil");
-          document.body.style.cursor = "default";
         }}
         keybind="1"
         title="Pencil — 1"
@@ -193,7 +245,6 @@ function Topbar({
         icon={<SlashIcon />}
         onClick={() => {
           setSelectedTool("line");
-          document.body.style.cursor = "default";
         }}
         keybind="2"
         title="Line — 2"
@@ -203,7 +254,6 @@ function Topbar({
         icon={<RectangleHorizontalIcon />}
         onClick={() => {
           setSelectedTool("rectangle");
-          document.body.style.cursor = "default";
         }}
         keybind="3"
         title="Rectangle — 3"
@@ -213,7 +263,6 @@ function Topbar({
         icon={<CircleIcon />}
         onClick={() => {
           setSelectedTool("circle");
-          document.body.style.cursor = "default";
         }}
         keybind="4"
         title="Circle — 4"
@@ -223,20 +272,92 @@ function Topbar({
         icon={<BaselineIcon />}
         onClick={() => {
           setSelectedTool("text");
-          document.body.style.cursor = "text";
         }}
         keybind="5"
         title="Text — 5"
       />
+      <div className="w-px h-8 bg-white/20" /> {/* Divider */}
       <IconButton
         isActivated={selectedTool === "eraser"}
         icon={<EraserIcon />}
         onClick={() => {
           setSelectedTool("eraser");
-          document.body.style.cursor = "default";
         }}
         keybind="6"
         title="Eraser — 6"
+      />
+      <IconButton
+        isActivated={selectedTool === "pan"}
+        icon={<HandIcon />}
+        onClick={() => {
+          setSelectedTool("pan");
+        }}
+        keybind="7"
+        title="Pan Tool"
+      />
+    </div>
+  );
+}
+
+function ColorBar({
+  selectedColor,
+  setSelectedColor,
+}: {
+  selectedColor: string;
+  setSelectedColor: (color: string) => void;
+}) {
+  const colors = [
+    "#FFFFFF",
+    "#F43F5E",
+    "#22D3EE",
+    "#A3E635",
+    "#FDE047",
+    "#D946EF",
+    "#FB923C",
+    "#F472B6",
+  ];
+
+  return (
+    <div className="fixed left-4 top-1/2 -translate-y-1/2 flex flex-col gap-4 bg-white/5 backdrop-blur-md p-3 rounded-2xl border border-white/20 cursor-default">
+      {colors.map((color) => (
+        <button
+          key={color}
+          onClick={() => setSelectedColor(color)}
+          style={{ backgroundColor: color }}
+          className={`w-8 h-8 rounded-full transition-all duration-300 shadow-md
+            ${
+              selectedColor === color
+                ? "scale-125 ring-2 ring-white/50 shadow-lg"
+                : "hover:scale-110 hover:ring-2 hover:ring-white/30"
+            }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ZoomBar({ game }: { game: Game | null }) {
+  const [scale, setScale] = useState(1);
+  return (
+    <div className="fixed bottom-4 left-4 flex items-center gap-2 bg-white/5 backdrop-blur-md px-3 py-2 rounded-xl border border-white/20 cursor-default">
+      <IconButton
+        icon={<MinusIcon />}
+        onClick={() => {
+          game?.zoomOut();
+          setScale(game?.getScale() || 1);
+        }}
+        title="Zoom Out"
+      />
+      <span className="text-white/70 text-sm min-w-[3rem] text-center">
+        {Math.round(scale * 100)}%{" "}
+      </span>
+      <IconButton
+        icon={<PlusIcon />}
+        onClick={() => {
+          game?.zoomIn();
+          setScale(game?.getScale() || 1);
+        }}
+        title="Zoom In"
       />
     </div>
   );

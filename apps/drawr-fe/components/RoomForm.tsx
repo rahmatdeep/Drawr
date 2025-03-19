@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { handleRoom } from "@/actions/room.action";
 import { useRouter } from "next/navigation";
+// import { Toast } from "@repo/ui/Toast";
 
 export function RoomForm({ token }: { token: string }) {
   const [isJoiningPending, startJoiningTransition] = useTransition();
@@ -13,6 +14,14 @@ export function RoomForm({ token }: { token: string }) {
 
   return (
     <div className="w-full max-w-2xl mx-auto mt-8">
+      {/* <div className="w-full max-w-2xl mx-auto mt-8">
+      {error && (
+        <Toast 
+          message={error} 
+          type="error" 
+          onClose={() => setError(null)} 
+        />
+      )} */}
       <form
         action={async (formData: FormData) => {
           const roomName = formData.get("roomName") as string;
@@ -24,15 +33,17 @@ export function RoomForm({ token }: { token: string }) {
               if (!error) {
                 router.push(`canvas/${roomName}`);
               } else {
+                roomNameRef.current?.focus();
                 setError(error);
               }
             });
-          } else if(type === "create") {
+          } else if (type === "create") {
             startCreatingTransition(async () => {
               const error = await handleRoom(token, roomName, type);
               if (!error) {
                 router.push(`canvas/${roomName}`);
               } else {
+                roomNameRef.current?.focus();
                 setError(error);
               }
             });
@@ -41,21 +52,25 @@ export function RoomForm({ token }: { token: string }) {
         className="relative group"
       >
         <div className="relative flex flex-col items-center gap-2">
-          <input
-            type="text"
-            name="roomName"
-            placeholder={
-              error || "Enter a room name to join or create a new one"
-            }
-            className={`w-full px-6 py-4 text-lg bg-gray-900/50 border-2 border-gray-700 rounded-xl 
-                     focus:outline-none focus:border-white ${error ? `border-red-600` : `border-gray-700 focus:border-white`} transition-all duration-300
-                     ${error ? `placeholder:text-red-500` : `placeholder:text-gray-500`} text-white caret-white`}
-            required
-            autoFocus
-            onFocus={() => setError(null)}
-            onChange={() => setError(null)}
-            ref={roomNameRef}
-          />
+          <div className="w-full">
+            <input
+              type="text"
+              name="roomName"
+              placeholder="Enter a room name to join or create a new one"
+              className={`w-full px-6 py-4 text-lg bg-gray-900/50 border-2 rounded-xl 
+                focus:outline-none ${error ? "border-red-600 focus:border-red-600" : "border-gray-700 focus:border-white"} transition-all duration-300
+                text-white caret-white`}
+              required
+              autoFocus
+              onChange={() => setError(null)}
+              ref={roomNameRef}
+            />
+            {error && (
+              <p className="text-red-500 text-sm mt-2 ml-2 animate-fadeIn">
+                {error}
+              </p>
+            )}
+          </div>
           <div className="flex items-center gap-4 mt-3">
             <button
               name="type"

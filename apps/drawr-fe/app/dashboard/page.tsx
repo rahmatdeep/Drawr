@@ -4,8 +4,8 @@ import { HTTP_BACKEND } from "@/config";
 import { Header } from "@/components/Header";
 import axios from "axios";
 import { getServerSession } from "next-auth";
+import { authOptions } from "../api/auth/[...nextauth]/options";
 import { RoomCard } from "@/components/RoomCard";
-import { authOptions } from "@/lib/auth";
 
 type Room = {
   room: {
@@ -27,9 +27,12 @@ async function getRooms(token: string) {
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
-  const username = session?.user.email.split("@")[0];
+  const username =
+    session?.provider === "google"
+      ? session.user.name
+      : session?.user.email.split("@")[0];
   const usernameCapitalized =
-    username!.charAt(0).toUpperCase() + username!.slice(1);
+    username && username.charAt(0).toUpperCase() + username.slice(1);
 
   if (!session?.accessToken) {
     redirect("/signin");
@@ -48,14 +51,17 @@ export default async function DashboardPage() {
             Hello {usernameCapitalized}! Here are the rooms you&apos;ve joined.
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {rooms.map(({ room }) => (
-              <RoomCard
-                key={room.id}
-                room={room}
-                isAdmin={room.adminId === session?.user.id}
-                token={session.accessToken}
-              />
-            ))}
+            {rooms.map(
+              ({ room }) =>
+                session.accessToken && (
+                  <RoomCard
+                    key={room.id}
+                    room={room}
+                    isAdmin={room.adminId === session?.userId}
+                    token={session?.accessToken}
+                  />
+                )
+            )}
           </div>
         </div>
       </main>

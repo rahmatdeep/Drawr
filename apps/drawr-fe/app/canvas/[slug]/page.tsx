@@ -1,6 +1,6 @@
+import { authOptions } from "@/app/api/auth/[...nextauth]/options";
 import { RoomCanvasComponent } from "@/components/RoomCanvasComponent";
 import { HTTP_BACKEND } from "@/config";
-import { authOptions } from "@/lib/auth";
 import axios from "axios";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
@@ -29,17 +29,15 @@ async function getRoom(slug: string, token: string) {
   }
   return roomId;
 }
-
-export default async function Canvas({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+type PageProps = {
+  params: Promise<{ slug: string }> & { slug: string };
+};
+export default async function Canvas({ params }: PageProps) {
   const session = await getServerSession(authOptions);
   if (!session?.accessToken) {
     redirect("/signin");
   }
-  const { slug } = await params;
+  const slug = (await params).slug;
   const roomId = await getRoom(slug, session?.accessToken);
   return <RoomCanvasComponent token={session?.accessToken} roomId={roomId} />;
 }

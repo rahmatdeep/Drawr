@@ -18,7 +18,9 @@ export async function handleRoom(
       });
 
       if (!roomResponse.data.room) {
-        throw new Error("Room not found");
+        errorMessage =
+          "Room does not exist. Please enter a valid room name or create a new room.";
+        return errorMessage;
       }
       roomId = roomResponse.data.room.id.toString();
       try {
