@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const signupSchema = z.object({
   email: z.string().email(),
-  username: z.string().min(3).max(20),
-  password: z.string(),
+  username: z.string().min(1),
+  password: z.string().min(5, "Password must be at least 5 characters"),
 });
 
 export const signinSchema = signupSchema.pick({

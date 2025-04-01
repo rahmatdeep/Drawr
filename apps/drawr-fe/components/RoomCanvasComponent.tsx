@@ -9,13 +9,15 @@ import { WSLoader } from "./WSLoader";
 export function RoomCanvasComponent({
   roomId,
   token,
+  currentUserId,
 }: {
   roomId: string;
   token: string;
+  currentUserId: string;
 }) {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const wsUrl = `${WS_BACKEND}?token=${token}`;
-//   const [roomUsers, setRoomUsers] = useState<string[]>([]);
+  //   const [roomUsers, setRoomUsers] = useState<string[]>([]);
   useEffect(() => {
     const ws = new WebSocket(wsUrl);
 
@@ -69,7 +71,11 @@ export function RoomCanvasComponent({
           </div>
         ))}
       </div> */}
-      <CanvasComponent roomId={roomId} socket={socket} />
+      <CanvasComponent
+        roomId={roomId}
+        socket={socket}
+        currentUserId={currentUserId}
+      />
     </div>
   );
 }

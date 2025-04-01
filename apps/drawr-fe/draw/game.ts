@@ -14,6 +14,8 @@ type Tool =
 type Shape =
   | {
       id?: number;
+      persistent?: boolean;
+      userId?: string;
       shape: {
         type: "rectangle";
         strokeColor: string;
@@ -25,6 +27,8 @@ type Shape =
     }
   | {
       id?: number;
+      persistent?: boolean;
+      userId?: string;
       shape: {
         strokeColor: string;
         type: "circle";
@@ -35,6 +39,8 @@ type Shape =
     }
   | {
       id?: number;
+      persistent?: boolean;
+      userId?: string;
       shape: {
         strokeColor: string;
         type: "line";
@@ -46,6 +52,8 @@ type Shape =
     }
   | {
       id?: number;
+      persistent?: boolean;
+      userId?: string;
       shape: {
         strokeColor: string;
         type: "pencil";
@@ -54,6 +62,8 @@ type Shape =
     }
   | {
       id?: number;
+      persistent?: boolean;
+      userId?: string;
       shape: {
         strokeColor: string;
         type: "text";
@@ -72,6 +82,7 @@ export class Game {
   private roomId: string;
   private socket: WebSocket;
   private clicked: boolean;
+  private userId: string;
   private startX: number = 0;
   private startY: number = 0;
   private selectedTool = "pencil";
@@ -83,10 +94,14 @@ export class Game {
   private isDragging: boolean = false;
   private lastX: number = 0;
   private lastY: number = 0;
+  private undoStack: Shape[] = [];
+  private redoStack: { type: "add" | "delete"; shapes: Shape[] }[] = [];
+  private operationsStack: { type: "add" | "delete"; shapes: Shape[] }[] = [];
   constructor(
     canvas: HTMLCanvasElement,
     roomId: string,
     socket: WebSocket,
+    userId: string,
     zoomOnScroll: boolean = false
   ) {
     this.canvas = canvas;
@@ -94,6 +109,7 @@ export class Game {
     this.existingShapes = [];
     this.roomId = roomId;
     this.socket = socket;
+    this.userId = userId;
     this.clicked = false;
     this.init();
     this.initHandlers();
@@ -110,6 +126,8 @@ export class Game {
   addText(text: string, x: number, y: number) {
     const newShape: Shape = {
       id: generateId(),
+      userId: this.userId,
+      persistent: false,
       shape: {
         type: "text",
         strokeColor: this.strokeColor,
@@ -121,6 +139,11 @@ export class Game {
       },
     };
     this.existingShapes.push(newShape);
+    this.operationsStack.push({
+      type: "add",
+      shapes: [newShape],
+    });
+    this.clearRedoStack(); // Clear redo stack when new text is added
     this.socket.send(
       JSON.stringify({
         type: "chat",
@@ -132,7 +155,16 @@ export class Game {
   }
 
   async init() {
-    this.existingShapes = await getExistingShapes(this.roomId);
+    this.undoStack = [];
+    this.redoStack = [];
+
+    const loadedShapes = await getExistingShapes(this.roomId);
+
+    // Add a flag to shapes loaded at initialization to mark them as persistent
+    this.existingShapes = loadedShapes.map((shape: Shape) => ({
+      ...shape,
+      persistent: true,
+    }));
     this.clearCanvas();
   }
 
@@ -144,6 +176,7 @@ export class Game {
     const message = JSON.parse(event.data);
     if (message.type === "chat") {
       const parsedShape = JSON.parse(message.message);
+      // Don't mark incoming shapes as persistent
       this.existingShapes.push(parsedShape);
       this.clearCanvas();
     }
@@ -243,16 +276,139 @@ export class Game {
   }
 
   zoomIn() {
-    this.scale *= 1.2;
+    this.scale += 0.1;
     this.scale = Math.min(this.scale, 10);
     this.clearCanvas();
   }
 
   zoomOut() {
-    this.scale *= 0.8;
+    this.scale -= 0.1;
     this.scale = Math.max(this.scale, 0.1);
     this.clearCanvas();
   }
+  exportAsPNG(): string {
+    this.ctx.save(); // Save current transformation state
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transformations to render the full canvas
+
+    // Create a temporary canvas with the same dimensions
+    const tempCanvas = document.createElement("canvas");
+    const tempCtx = tempCanvas.getContext("2d")!;
+
+    // Set the temp canvas to the same size
+    tempCanvas.width = this.canvas.width;
+    tempCanvas.height = this.canvas.height;
+
+    tempCtx.fillStyle = "black";
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    tempCtx.drawImage(this.canvas, 0, 0); // Draw the current canvas content onto the temp canvas
+
+    this.ctx.restore(); // Restore the original transformation
+
+    return tempCanvas.toDataURL("image/png");
+  }
+
+  undo() {
+    if (this.operationsStack.length === 0) return;
+
+    const lastOperation = this.operationsStack.pop();
+    if (!lastOperation) return;
+
+    if (lastOperation.type === "add") {
+      // Remove the added shapes
+      lastOperation.shapes.forEach((shape) => {
+        const index = this.existingShapes.findIndex((s) => s.id === shape.id);
+        if (index >= 0) {
+          this.existingShapes.splice(index, 1);
+          // Send delete message to server
+          if (shape.id) {
+            this.socket.send(
+              JSON.stringify({
+                type: "delete_message",
+                roomId: Number(this.roomId),
+                messageId: shape.id,
+              })
+            );
+          }
+        }
+      });
+    } else if (lastOperation.type === "delete") {
+      // Add back the deleted shapes
+      lastOperation.shapes.forEach((shape) => {
+        this.existingShapes.push(shape);
+        // Send add message to server
+        if (shape.id) {
+          this.socket.send(
+            JSON.stringify({
+              type: "chat",
+              message: JSON.stringify(shape),
+              roomId: Number(this.roomId),
+            })
+          );
+        }
+      });
+    }
+    this.redoStack.push(lastOperation);
+    this.clearCanvas();
+  }
+
+  redo() {
+    if (this.redoStack.length === 0) return;
+
+    const operationToRedo = this.redoStack.pop();
+    if (!operationToRedo) return;
+
+    if (operationToRedo.type === "add") {
+      // Re-add the shapes
+      operationToRedo.shapes.forEach((shape) => {
+        this.existingShapes.push(shape);
+        // Send add message to server
+        if (shape.id) {
+          this.socket.send(
+            JSON.stringify({
+              type: "chat",
+              message: JSON.stringify(shape),
+              roomId: Number(this.roomId),
+            })
+          );
+        }
+      });
+    } else if (operationToRedo.type === "delete") {
+      // Re-delete the shapes
+      operationToRedo.shapes.forEach((shape) => {
+        const index = this.existingShapes.findIndex((s) => s.id === shape.id);
+        if (index >= 0) {
+          this.existingShapes.splice(index, 1);
+          // Send delete message to server
+          if (shape.id) {
+            this.socket.send(
+              JSON.stringify({
+                type: "delete_message",
+                roomId: Number(this.roomId),
+                messageId: shape.id,
+              })
+            );
+          }
+        }
+      });
+    }
+
+    this.operationsStack.push(operationToRedo);
+    this.clearCanvas();
+  }
+
+  canUndo(): boolean {
+    return this.operationsStack.length > 0;
+  }
+
+  canRedo(): boolean {
+    return this.redoStack.length > 0;
+  }
+
+  clearRedoStack() {
+    this.redoStack = [];
+  }
+
   mouseDownHandler = (e: MouseEvent) => {
     this.clicked = true;
     // this.startX = e.clientX;
@@ -273,7 +429,7 @@ export class Game {
       const transformedY = (e.clientY - this.offsetY) / this.scale;
       const eraserX = transformedX + eraserRadius; // Adjust the x-coordinate to center the eraser
       const eraserY = transformedY + eraserRadius; // Adjust the y-coordinate to center the eraser
-
+      const shapesToDelete: Shape[] = [];
       this.existingShapes = this.existingShapes.filter((element) => {
         let shouldKeep = true;
 
@@ -360,6 +516,7 @@ export class Game {
         }
 
         if (!shouldKeep) {
+          shapesToDelete.push(element);
           this.socket.send(
             JSON.stringify({
               type: "delete_message",
@@ -371,6 +528,14 @@ export class Game {
         return shouldKeep;
       });
 
+      // Add the delete operation to the operations stack
+      if (shapesToDelete.length > 0) {
+        this.operationsStack.push({
+          type: "delete",
+          shapes: shapesToDelete,
+        });
+        this.clearRedoStack();
+      }
       this.clearCanvas();
       return;
     }
@@ -390,6 +555,8 @@ export class Game {
     if (selectedTool === "rectangle") {
       newShape = {
         id: generateId(),
+        userId: this.userId,
+        persistent: false,
         shape: {
           type: "rectangle",
           strokeColor: this.strokeColor,
@@ -403,6 +570,8 @@ export class Game {
       const radius = Math.sqrt(height ** 2 + width ** 2) / 2;
       newShape = {
         id: generateId(),
+        userId: this.userId,
+        persistent: false,
         shape: {
           type: "circle",
           strokeColor: this.strokeColor,
@@ -414,6 +583,8 @@ export class Game {
     } else if (selectedTool === "line") {
       newShape = {
         id: generateId(),
+        userId: this.userId,
+        persistent: false,
         shape: {
           type: "line",
           strokeColor: this.strokeColor,
@@ -426,6 +597,8 @@ export class Game {
     } else if (selectedTool === "pencil" && this.currentPath.length > 0) {
       newShape = {
         id: generateId(),
+        userId: this.userId,
+        persistent: false,
         shape: {
           type: "pencil",
           strokeColor: this.strokeColor,
@@ -434,7 +607,11 @@ export class Game {
       };
       this.currentPath = []; // Reset path after creating shape
       this.existingShapes.push(newShape);
-
+      this.operationsStack.push({
+        type: "add",
+        shapes: [newShape],
+      });
+      this.clearRedoStack(); // Clear redo stack when new shape is added
       this.socket.send(
         JSON.stringify({
           type: "chat",
@@ -450,6 +627,11 @@ export class Game {
       return;
     }
     this.existingShapes.push(newShape);
+    this.operationsStack.push({
+      type: "add",
+      shapes: [newShape],
+    });
+    this.clearRedoStack(); // Clear redo stack when new shape is added
 
     this.socket.send(
       JSON.stringify({

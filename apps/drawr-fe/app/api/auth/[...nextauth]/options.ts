@@ -48,6 +48,15 @@ export const authOptions: NextAuthOptions = {
           };
         } catch (error) {
           if (axios.isAxiosError(error)) {
+            if (error.response?.data.message === "Validation Failed") {
+              const validationErrors = error.response.data.error;
+              const errorMessages = Object.keys(validationErrors)
+                .filter((key) => key !== "_errors")
+                .map((key) => validationErrors[key]._errors)
+                .flat()
+                .join(", ");
+              throw new Error(errorMessages);
+            }
             throw new Error(
               error.response?.data.message || "Authentication failed"
             );

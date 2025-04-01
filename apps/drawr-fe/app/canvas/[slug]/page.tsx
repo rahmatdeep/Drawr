@@ -34,10 +34,18 @@ type PageProps = {
 };
 export default async function Canvas({ params }: PageProps) {
   const session = await getServerSession(authOptions);
+  console.log("session", session);
+
   if (!session?.accessToken) {
     redirect("/signin");
   }
   const slug = (await params).slug;
   const roomId = await getRoom(slug, session?.accessToken);
-  return <RoomCanvasComponent token={session?.accessToken} roomId={roomId} />;
+  return (
+    <RoomCanvasComponent
+      token={session?.accessToken}
+      roomId={roomId}
+      currentUserId={session?.userId}
+    />
+  );
 }

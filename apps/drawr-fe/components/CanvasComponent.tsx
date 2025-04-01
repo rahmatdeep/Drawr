@@ -10,9 +10,14 @@ import {
   HandIcon,
   MinusIcon,
   PlusIcon,
+  HouseIcon,
+  FullscreenIcon,
+  Undo2Icon,
+  Redo2Icon,
 } from "lucide-react";
 import { Game } from "@/draw/game";
 import { usePageSize } from "@/hooks/usePagesize";
+import { useRouter } from "next/navigation";
 
 type Tool =
   | "circle"
@@ -26,15 +31,19 @@ type Tool =
 export function CanvasComponent({
   roomId,
   socket,
+  currentUserId
 }: {
   roomId: string;
   socket: WebSocket;
+  currentUserId: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<Game | null>(null);
   const pageSize = usePageSize();
   const [selectedColor, setSelectedColor] = useState<string>("white");
-  const zoomOnScroll = false;
+  const zoomOnScroll = false; // Set to true to set zoom on scroll
+  const router = useRouter();
+  const [gameInitialized, setGameInitialized] = useState(false);
 
   useEffect(() => {
     gameRef.current?.setStrokeColor(selectedColor);
@@ -125,7 +134,17 @@ export function CanvasComponent({
             document.body.style.cursor = "crosshair";
           }
         }}
-        onBlur={() => setTextInput({ ...textInput, isVisible: false })}
+        onBlur={(e) => {
+          if (e.currentTarget.value) {
+            gameRef.current?.addText(
+              e.currentTarget.value,
+              textInput.x,
+              textInput.y
+            );
+          }
+          setTextInput({ ...textInput, isVisible: false });
+          document.body.style.cursor = "crosshair";
+        }}
       />
     ) : null;
   };
@@ -145,16 +164,22 @@ export function CanvasComponent({
         canvasRef.current,
         roomId,
         socket,
+        currentUserId,
         zoomOnScroll
       );
+      // Set the initialized state to true
+      setGameInitialized(true);
     }
     return () => {
       gameRef.current?.destroy();
     };
-  }, [roomId, socket, zoomOnScroll]);
+  }, [roomId, socket, zoomOnScroll, currentUserId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts if user is typing in text input
+      if (textInput.isVisible) return;
+
       switch (e.key) {
         case "1":
           setSelectedTool("pencil");
@@ -178,6 +203,32 @@ export function CanvasComponent({
           setSelectedTool("pan");
           break;
       }
+      // Handle Ctrl+S for download
+      if (e.ctrlKey && e.key === "s") {
+        e.preventDefault();
+        handleDownload();
+        return;
+      }
+      // Handle Ctrl+H for back to dashboard
+      if (e.ctrlKey && e.key === "h") {
+        e.preventDefault();
+        router.push("/dashboard");
+        document.body.style.cursor = "default";
+        return;
+      }
+      // Handle Ctrl+Z for undo
+      if (e.ctrlKey && e.key === "z") {
+        e.preventDefault();
+        gameRef.current?.undo();
+        return;
+      }
+
+      // Handle Ctrl+Y for redo
+      if (e.ctrlKey && e.key === "y") {
+        e.preventDefault();
+        gameRef.current?.redo();
+        return;
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -185,7 +236,33 @@ export function CanvasComponent({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [textInput.isVisible]);
+
+  const handleDownload = () => {
+    if (!gameRef.current) return;
+
+    // Get the data URL from the game
+    const dataUrl = gameRef.current.exportAsPNG();
+
+    // Get current date and time
+    const today = new Date();
+    const dateStr = today.toISOString().split("T")[0].replace(/-/g, ""); // YYYYMMDD
+    const timeStr = today
+      .toTimeString()
+      .split(" ")[0]
+      .replace(/:/g, "")
+      .substring(0, 6); // HHMMSS
+
+    // Create a temporary link element
+    const link = document.createElement("a");
+    link.download = `drawr-room${roomId}-${dateStr}${timeStr}.png`;
+    link.href = dataUrl;
+
+    // Append to the document, click it, and remove it
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="overflow-hidden h-screen">
@@ -209,7 +286,12 @@ export function CanvasComponent({
         }}
       ></canvas>
       <FloatingTextInput />
-      <Topbar selectedTool={selectedTool} setSelectedTool={setSelectedTool} />
+      <Topbar
+        selectedTool={selectedTool}
+        setSelectedTool={setSelectedTool}
+        handleDownload={handleDownload}
+        router={router}
+      />
       <div className="fixed top-[5.5rem] left-1/2 -translate-x-1/2 text-white/50 text-sm">
         {toolDescriptions[selectedTool]}
       </div>
@@ -217,7 +299,12 @@ export function CanvasComponent({
         selectedColor={selectedColor}
         setSelectedColor={setSelectedColor}
       />
-      <ZoomBar game={gameRef.current} />
+      {gameInitialized && (
+        <div className="fixed bottom-4 left-4 flex gap-2">
+          <ZoomBar game={gameRef.current} />
+          <UndoRedoBar game={gameRef.current} />
+        </div>
+      )}
     </div>
   );
 }
@@ -225,9 +312,13 @@ export function CanvasComponent({
 function Topbar({
   selectedTool,
   setSelectedTool,
+  handleDownload,
+  router,
 }: {
   selectedTool: Tool;
   setSelectedTool: (shape: Tool) => void;
+  handleDownload: () => void;
+  router: ReturnType<typeof useRouter>;
 }) {
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 flex gap-4 items-center bg-white/5 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20 transition-all duration-300 cursor-default">
@@ -293,7 +384,22 @@ function Topbar({
           setSelectedTool("pan");
         }}
         keybind="7"
-        title="Pan Tool"
+        title="Pan Tool — 7"
+      />
+      <IconButton
+        icon={<FullscreenIcon />}
+        onClick={handleDownload}
+        keybind="^S"
+        title="Save current view as PNG — Ctrl+S"
+      />
+      <IconButton
+        icon={<HouseIcon />}
+        onClick={() => {
+          router.push("/dashboard");
+          document.body.style.cursor = "default";
+        }}
+        keybind="^H"
+        title="Back to Dashboard — Ctrl+H"
       />
     </div>
   );
@@ -337,15 +443,31 @@ function ColorBar({
 }
 
 function ZoomBar({ game }: { game: Game | null }) {
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(() => game?.getScale() || 1);
+  useEffect(() => {
+    if (game) {
+      setScale(game.getScale());
+    }
+  }, [game]);
+
+  const handleZoom = (zoomType: "in" | "out") => {
+    if (!game) return;
+
+    if (zoomType === "in") {
+      game.zoomIn();
+    } else {
+      game.zoomOut();
+    }
+
+    // Update scale after zoom operation
+    setScale(game.getScale());
+  };
+
   return (
-    <div className="fixed bottom-4 left-4 flex items-center gap-2 bg-white/5 backdrop-blur-md px-3 py-2 rounded-xl border border-white/20 cursor-default">
+    <div className="flex items-center gap-2 bg-white/5 backdrop-blur-md px-3 py-2 rounded-xl border border-white/20 cursor-default">
       <IconButton
         icon={<MinusIcon />}
-        onClick={() => {
-          game?.zoomOut();
-          setScale(game?.getScale() || 1);
-        }}
+        onClick={() => handleZoom("out")}
         title="Zoom Out"
       />
       <span className="text-white/70 text-sm min-w-[3rem] text-center">
@@ -353,11 +475,60 @@ function ZoomBar({ game }: { game: Game | null }) {
       </span>
       <IconButton
         icon={<PlusIcon />}
-        onClick={() => {
-          game?.zoomIn();
-          setScale(game?.getScale() || 1);
-        }}
+        onClick={() => handleZoom("in")}
         title="Zoom In"
+      />
+    </div>
+  );
+}
+
+function UndoRedoBar({ game }: { game: Game | null }) {
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  useEffect(() => {
+    if (game) {
+      // Initial check
+      setCanUndo(game.canUndo());
+      setCanRedo(game.canRedo());
+
+      // Set up an interval to periodically check
+      const intervalId = setInterval(() => {
+        setCanUndo(game.canUndo());
+        setCanRedo(game.canRedo());
+      }, 500);
+
+      return () => clearInterval(intervalId);
+    }
+  }, [game]);
+
+  const handleUndo = () => {
+    if (!game || !canUndo) return;
+    game.undo();
+    setCanUndo(game.canUndo());
+    setCanRedo(game.canRedo());
+  };
+
+  const handleRedo = () => {
+    if (!game || !canRedo) return;
+    game.redo();
+    setCanUndo(game.canUndo());
+    setCanRedo(game.canRedo());
+  };
+
+  return (
+    <div className="flex items-center gap-2 bg-white/5 backdrop-blur-md px-3 py-2 rounded-xl border border-white/20 cursor-default">
+      <IconButton
+        icon={<Undo2Icon />}
+        onClick={handleUndo}
+        title="Undo (Ctrl+Z)"
+        disabled={!canUndo}
+      />
+      <IconButton
+        icon={<Redo2Icon />}
+        onClick={handleRedo}
+        title="Redo (Ctrl+Y)"
+        disabled={!canRedo}
       />
     </div>
   );
