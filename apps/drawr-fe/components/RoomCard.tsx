@@ -16,6 +16,9 @@ type RoomCardProps = {
   token: string;
 };
 
+const formatRoomName = (slug: string): string => {
+  return slug.replace(/_+/g, " ").trim();
+};
 export function RoomCard({ room, isAdmin, token }: RoomCardProps) {
   const router = useRouter();
   const handleDeleteRoom = async () => {
@@ -42,6 +45,8 @@ export function RoomCard({ room, isAdmin, token }: RoomCardProps) {
     }
   };
 
+  // Format the room name for display
+  const displayName = formatRoomName(room.slug);
   return (
     <div
       className="group relative p-6 bg-gray-900/50 rounded-xl border border-gray-700/50 
@@ -49,7 +54,7 @@ export function RoomCard({ room, isAdmin, token }: RoomCardProps) {
                     hover:border-white/20 hover:scale-[1.02]"
     >
       <a href={`/canvas/${room.slug}`}>
-        <h3 className="text-xl font-medium text-white mb-2">{room.slug}</h3>
+        <h3 className="text-xl font-medium text-white mb-2">{displayName}</h3>
         <p className="text-sm text-gray-400">
           Created on {new Date(room.createdAt).toLocaleDateString()}
           <span className="mt-4 flex items-center text-white text-sm font-medium">

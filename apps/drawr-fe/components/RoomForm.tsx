@@ -24,7 +24,9 @@ export function RoomForm({ token }: { token: string }) {
       )} */}
       <form
         action={async (formData: FormData) => {
-          const roomName = formData.get("roomName") as string;
+          let roomName = formData.get("roomName") as string;
+          // Trim whitespace, normalize spaces, then replace with underscores
+          roomName = roomName.trim().replace(/\s+/g, " ").replace(/\s/g, "_");
           const type = formData.get("type") as string;
           setError(null);
           if (type === "join") {
