@@ -38,7 +38,6 @@ Drawr is a web-based canvas application that enables users to draw shapes togeth
 
    ```bash
    git clone https://github.com/rahmatdeep/Drawr.git
-   cd Drawr
    ```
 
 2. Set up environment variables
