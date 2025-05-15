@@ -34,6 +34,10 @@ export function VoiceCallComponent({
   );
   const audioContextRef = useRef<AudioContext | null>(null);
 
+  // Negotiation state tracking
+  const makingOfferRef = useRef<{ [userId: string]: boolean }>({});
+  const ignoreOfferRef = useRef<{ [userId: string]: boolean }>({});
+
   // Set up WebRTC audio
   useEffect(() => {
     if (!isInCall) return;
@@ -197,34 +201,27 @@ export function VoiceCallComponent({
   }, [socket, isInCall, currentUserId, roomId]);
 
   // Create WebRTC peer connection
-  const  createPeerConnection = async (targetUserId: string) => {
+  const createPeerConnection = (targetUserId: string) => {
     if (peerConnectionsRef.current[targetUserId]) return;
 
     const peerConnection = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
-        {
-          urls: "turn:openrelay.metered.ca:443",
-          username: "openrelayproject",
-          credential: "openrelayproject",
-        },
-        {
-          urls: "turn:openrelay.metered.ca:443?transport=tcp",
-          username: "openrelayproject",
-          credential: "openrelayproject",
-        },
       ],
     });
+
+    // Initialize negotiation state for this peer
+    makingOfferRef.current[targetUserId] = false;
+    ignoreOfferRef.current[targetUserId] = false;
 
     // Add local stream tracks to the connection
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
+        console.log("Adding track to peer connection:", track);
+
         peerConnection.addTrack(track, localStreamRef.current!);
       });
-    } else {
-      console.log("local stream not found");
-      return;
     }
 
     // Handle ICE candidates
@@ -255,57 +252,127 @@ export function VoiceCallComponent({
       document.body.appendChild(audioElement);
     };
 
+    // Handle negotiation needed - using the polite peer model
+    peerConnection.onnegotiationneeded = async () => {
+      try {
+        // Determine if this peer should be the one making the offer
+        // Simple deterministic approach: compare user IDs
+        const isPolite = currentUserId > targetUserId;
+
+        // Only proceed if we're the polite peer or there's no collision
+        if (isPolite || !makingOfferRef.current[targetUserId]) {
+          console.log(`Negotiation needed for peer ${targetUserId}`);
+          makingOfferRef.current[targetUserId] = true;
+
+          const offer = await peerConnection.createOffer();
+
+          // Check if connection is still valid before proceeding
+          if (peerConnection.signalingState === "closed") {
+            console.log("Connection closed during offer creation");
+            return;
+          }
+
+          await peerConnection.setLocalDescription(offer);
+
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(
+              JSON.stringify({
+                type: "webrtc_offer",
+                offer: peerConnection.localDescription,
+                targetUserId,
+                roomId: Number(roomId),
+              })
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error during negotiation:", error);
+      } finally {
+        makingOfferRef.current[targetUserId] = false;
+      }
+    };
+
     // Save the peer connection
     peerConnectionsRef.current[targetUserId] = peerConnection;
-
-    // If we're the one joining, create an offer
-    if (isInCall && localStreamRef.current) {
-      await createOffer(targetUserId, peerConnection);
-    }
 
     return peerConnection;
   };
 
   // Create and send an offer
-  const createOffer = async (
-    targetUserId: string,
-    peerConnection: RTCPeerConnection
-  ) => {
-    try {
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
+  //   const createOffer = async (
+  //     targetUserId: string,
+  //     peerConnection: RTCPeerConnection
+  //   ) => {
+  //     try {
+  //       const offer = await peerConnection.createOffer();
+  //       await peerConnection.setLocalDescription(offer);
 
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(
-          JSON.stringify({
-            type: "webrtc_offer",
-            offer,
-            targetUserId,
-            roomId: Number(roomId),
-          })
-        );
-      }
-    } catch (error) {
-      console.error("Error creating offer:", error);
-    }
-  };
+  //       if (socket && socket.readyState === WebSocket.OPEN) {
+  //         socket.send(
+  //           JSON.stringify({
+  //             type: "webrtc_offer",
+  //             offer,
+  //             targetUserId,
+  //             roomId: Number(roomId),
+  //           })
+  //         );
+  //       }
+  //     } catch (error) {
+  //       console.error("Error creating offer:", error);
+  //     }
+  //   };
 
   // Handle incoming WebRTC offer
   const handleWebRTCOffer = async (data: any) => {
     const { fromUserId, offer } = data;
 
+    // Determine politeness based on user IDs
+    const isPolite = currentUserId < fromUserId;
+
+    console.log(`Received offer from ${fromUserId}, isPolite: ${isPolite}`);
+
     // Create peer connection if it doesn't exist
     let peerConnection = peerConnectionsRef.current[fromUserId];
-    if (!peerConnection ) {
-      const newPeerConnection = await createPeerConnection(fromUserId);
+    if (!peerConnection) {
+      const newPeerConnection = createPeerConnection(fromUserId);
       if (!newPeerConnection) return;
       peerConnection = newPeerConnection;
     }
 
+    // Check for offer collision
+    const readyForOffer =
+      !makingOfferRef.current[fromUserId] &&
+      (peerConnection.signalingState === "stable" ||
+        peerConnection.signalingState === "have-remote-offer");
+
+    const offerCollision = !readyForOffer;
+
+    // If we're impolite and there's a collision, ignore this offer
+    if (!isPolite && offerCollision) {
+      console.warn("Ignoring offer due to collision (impolite peer)");
+      return;
+    }
+
+    // Log current state for debugging
+    console.log("Signaling State:", peerConnection.signalingState);
+    console.log("Local Description:", peerConnection.localDescription);
+    console.log("Remote Description:", peerConnection.remoteDescription);
+
     try {
+      // If we have a collision and we're polite, roll back
+      if (offerCollision && isPolite) {
+        console.log(
+          "Polite peer rolling back local description due to collision"
+        );
+        await peerConnection.setLocalDescription({ type: "rollback" });
+      }
+
+      // Set the remote description (the offer)
       await peerConnection.setRemoteDescription(
         new RTCSessionDescription(offer)
       );
+
+      // Create and send an answer
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
 
@@ -313,7 +380,7 @@ export function VoiceCallComponent({
         socket.send(
           JSON.stringify({
             type: "webrtc_answer",
-            answer,
+            answer: peerConnection.localDescription,
             targetUserId: fromUserId,
             roomId: Number(roomId),
           })
@@ -329,12 +396,29 @@ export function VoiceCallComponent({
     const { fromUserId, answer } = data;
 
     const peerConnection = peerConnectionsRef.current[fromUserId];
-    if (!peerConnection) return;
+    if (!peerConnection) {
+      console.warn(`No peer connection for user ${fromUserId}`);
+      return;
+    }
+
+    // Only set remote description if we're in the right state
+    if (peerConnection.signalingState !== "have-local-offer") {
+      console.warn(
+        `Cannot set remote answer in state: ${peerConnection.signalingState}`
+      );
+      return;
+    }
 
     try {
+      console.log(`Setting remote description (answer) from ${fromUserId}`);
+      console.log("Current signaling state:", peerConnection.signalingState);
+
       await peerConnection.setRemoteDescription(
         new RTCSessionDescription(answer)
       );
+
+      console.log("Remote description set successfully");
+      console.log("New signaling state:", peerConnection.signalingState);
     } catch (error) {
       console.error("Error handling answer:", error);
     }
