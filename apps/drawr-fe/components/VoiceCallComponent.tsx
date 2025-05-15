@@ -197,7 +197,7 @@ export function VoiceCallComponent({
   }, [socket, isInCall, currentUserId, roomId]);
 
   // Create WebRTC peer connection
-  const createPeerConnection = (targetUserId: string) => {
+  const  createPeerConnection = async (targetUserId: string) => {
     if (peerConnectionsRef.current[targetUserId]) return;
 
     const peerConnection = new RTCPeerConnection({
@@ -222,6 +222,9 @@ export function VoiceCallComponent({
       localStreamRef.current.getTracks().forEach((track) => {
         peerConnection.addTrack(track, localStreamRef.current!);
       });
+    } else {
+      console.log("local stream not found");
+      return;
     }
 
     // Handle ICE candidates
@@ -257,7 +260,7 @@ export function VoiceCallComponent({
 
     // If we're the one joining, create an offer
     if (isInCall && localStreamRef.current) {
-      createOffer(targetUserId, peerConnection);
+      await createOffer(targetUserId, peerConnection);
     }
 
     return peerConnection;
@@ -293,8 +296,8 @@ export function VoiceCallComponent({
 
     // Create peer connection if it doesn't exist
     let peerConnection = peerConnectionsRef.current[fromUserId];
-    if (!peerConnection) {
-      const newPeerConnection = createPeerConnection(fromUserId);
+    if (!peerConnection ) {
+      const newPeerConnection = await createPeerConnection(fromUserId);
       if (!newPeerConnection) return;
       peerConnection = newPeerConnection;
     }
