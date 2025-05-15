@@ -15,12 +15,16 @@ Drawr is a web-based canvas application that enables users to draw shapes togeth
 - **Undo & Redo**: Easily correct mistakes with undo and redo functionality
 - **Export Canvas**: Save the canvas view as PNG images
 - **User Authentication**: Secure access with Google authentication
+- **Online Users**: See who is currently active in your drawing room with real-time user presence indicators
+- **Guest Mode**: Join and collaborate without requiring an account
+- **Voice Calls**: Communicate with other users through integrated voice calls in drawing rooms
 
 ## Technical Stack
 
 - **Frontend**: Next.js with TypeScript
 - **Authentication**: NextAuth.js with Google provider
 - **Real-time Communication**: WebSockets
+- **Real-time Voice Communication**: WebRTC
 - **Database**: PostgreSQL with Prisma ORM
 - **Canvas Manipulation**: HTML5 Canvas API
 
@@ -37,7 +41,8 @@ Drawr is a web-based canvas application that enables users to draw shapes togeth
 1. Clone the repository
 
    ```bash
-   git clone https://github.com/rahmatdeep/Drawr.git
+   git clone https://github.com/fal4782/Drawr.git
+   cd Drawr
    ```
 
 2. Set up environment variables
@@ -89,13 +94,14 @@ Drawr is a web-based canvas application that enables users to draw shapes togeth
 
 ## Usage
 
-1. Sign in using Google authentication
+1. Sign in using Google authentication or continue as a guest
 2. Create or join a drawing room
 3. Use the drawing tools to create shapes
 4. Collaborate in real-time with other users in the same room
 5. Pan around the canvas by dragging with the mouse
 6. Zoom in and out using the scroll wheel (if enabled), otherwise use the zoom buttons
-
+7. View currently active users in the room through the avatar indicators in the bottom-right corner
+8. Join voice calls with other users in the room to communicate while drawing
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

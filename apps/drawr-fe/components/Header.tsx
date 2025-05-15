@@ -9,7 +9,7 @@ export function Header() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const handleLogout = () => {
     setIsSigningOut(true);
-    signOut({ callbackUrl: "/signin" });
+    signOut({ callbackUrl: "/" });
   };
 
   return (

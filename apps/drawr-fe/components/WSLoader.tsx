@@ -1,6 +1,10 @@
 import { Pencil } from "lucide-react";
 
-export function WSLoader() {
+export function WSLoader({
+  message = "Connecting to server...",
+}: {
+  message?: string;
+}) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-900 to-black flex items-center justify-center">
       <div className="text-center">
@@ -20,7 +24,7 @@ export function WSLoader() {
           <div className="w-2 h-2 rounded-full bg-white animate-pulse delay-300" />
         </div>
 
-        <p className="mt-4 text-zinc-400">Connecting to drawing space...</p>
+        <p className="mt-4 text-zinc-400">{message}</p>
       </div>
     </div>
   );

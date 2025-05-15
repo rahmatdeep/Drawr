@@ -17,7 +17,7 @@ export function IconButton({
   disabled?: boolean;
 }) {
   return (
-    <div
+    <button
       className={`
         p-2.5 
         rounded-xl 
@@ -38,7 +38,8 @@ export function IconButton({
       `}
       onClick={onClick}
       title={title}
-      style={{ pointerEvents: disabled ? "none" : "auto" }}
+      disabled={disabled}
+      type="button"
     >
       {icon}
       {keybind && (
@@ -52,6 +53,6 @@ export function IconButton({
           {keybind}
         </span>
       )}
-    </div>
+    </button>
   );
 }

@@ -18,18 +18,32 @@ export default function Home() {
           <p className="text-lg text-neutral-400 mb-8 max-w-md mx-auto">
             Collaborative sketching reimagined for modern teams
           </p>
-          <Link href={"/signin"}>
-            <Button
-              size="lg"
-              variant="primary"
-              className="px-8 py-4 bg-white text-black rounded-xl text-lg font-medium
+          <div className="flex gap-4 justify-center">
+            <Link href={"/signin"}>
+              <Button
+                size="lg"
+                variant="primary"
+                className="px-8 py-4 bg-white text-black rounded-xl text-lg font-medium
               transform transition-all duration-300 hover:scale-105
                      hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-white
                     "
-            >
-              Start Creating
-            </Button>
-          </Link>
+              >
+                Start Creating
+              </Button>
+            </Link>
+            <Link href="/canvas/guest-canvas?guest=true">
+              <Button
+                size="lg"
+                variant="outline"
+                className="px-8 py-4 border border-white/20 text-white rounded-xl text-lg font-medium
+                transform transition-all duration-300 hover:scale-105
+                      hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/50
+                      "
+              >
+                Try as Guest
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 

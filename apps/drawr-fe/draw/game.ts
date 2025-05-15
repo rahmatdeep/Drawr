@@ -11,11 +11,9 @@ type Tool =
   | "text"
   | "pan";
 
-type Shape =
+export type Shape =
   | {
       id?: number;
-      persistent?: boolean;
-      userId?: string;
       shape: {
         type: "rectangle";
         strokeColor: string;
@@ -27,8 +25,6 @@ type Shape =
     }
   | {
       id?: number;
-      persistent?: boolean;
-      userId?: string;
       shape: {
         strokeColor: string;
         type: "circle";
@@ -39,8 +35,6 @@ type Shape =
     }
   | {
       id?: number;
-      persistent?: boolean;
-      userId?: string;
       shape: {
         strokeColor: string;
         type: "line";
@@ -52,8 +46,6 @@ type Shape =
     }
   | {
       id?: number;
-      persistent?: boolean;
-      userId?: string;
       shape: {
         strokeColor: string;
         type: "pencil";
@@ -62,8 +54,6 @@ type Shape =
     }
   | {
       id?: number;
-      persistent?: boolean;
-      userId?: string;
       shape: {
         strokeColor: string;
         type: "text";
@@ -80,9 +70,8 @@ export class Game {
   private ctx: CanvasRenderingContext2D;
   private existingShapes: Shape[];
   private roomId: string;
-  private socket: WebSocket;
+  private socket: WebSocket | null;
   private clicked: boolean;
-  private userId: string;
   private startX: number = 0;
   private startY: number = 0;
   private selectedTool = "pencil";
@@ -94,23 +83,23 @@ export class Game {
   private isDragging: boolean = false;
   private lastX: number = 0;
   private lastY: number = 0;
-  private undoStack: Shape[] = [];
   private redoStack: { type: "add" | "delete"; shapes: Shape[] }[] = [];
   private operationsStack: { type: "add" | "delete"; shapes: Shape[] }[] = [];
+  private guestMode: boolean = false;
   constructor(
     canvas: HTMLCanvasElement,
     roomId: string,
-    socket: WebSocket,
-    userId: string,
-    zoomOnScroll: boolean = false
+    socket: WebSocket | null,
+    zoomOnScroll: boolean = false,
+    guestMode: boolean = false
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
     this.existingShapes = [];
     this.roomId = roomId;
     this.socket = socket;
-    this.userId = userId;
     this.clicked = false;
+    this.guestMode = guestMode;
     this.init();
     this.initHandlers();
     if (zoomOnScroll) {
@@ -126,8 +115,6 @@ export class Game {
   addText(text: string, x: number, y: number) {
     const newShape: Shape = {
       id: generateId(),
-      userId: this.userId,
-      persistent: false,
       shape: {
         type: "text",
         strokeColor: this.strokeColor,
@@ -143,40 +130,51 @@ export class Game {
       type: "add",
       shapes: [newShape],
     });
+
     this.clearRedoStack(); // Clear redo stack when new text is added
-    this.socket.send(
-      JSON.stringify({
-        type: "chat",
-        message: JSON.stringify(newShape),
-        roomId: Number(this.roomId),
-      })
-    );
+    if (!this.guestMode && this.socket) {
+      // Only send to server if not in guest mode
+      this.socket.send(
+        JSON.stringify({
+          type: "chat",
+          message: JSON.stringify(newShape),
+          roomId: Number(this.roomId),
+        })
+      );
+    } else if (this.guestMode) {
+      this.saveGuestCanvasData(); // Save to localStorage in guest mode
+    }
     this.clearCanvas();
   }
 
   async init() {
-    this.undoStack = [];
-    this.redoStack = [];
-
-    const loadedShapes = await getExistingShapes(this.roomId);
-
-    // Add a flag to shapes loaded at initialization to mark them as persistent
-    this.existingShapes = loadedShapes.map((shape: Shape) => ({
-      ...shape,
-      persistent: true,
-    }));
+    if (!this.guestMode) {
+      this.existingShapes = await getExistingShapes(this.roomId);
+    } else {
+      const savedData = localStorage.getItem("guestCanvasData");
+      if (savedData) {
+        try {
+          this.existingShapes = JSON.parse(savedData);
+        } catch (e) {
+          console.error("Failed to parse saved guest canvas data", e);
+          this.existingShapes = [];
+        }
+      }
+    }
     this.clearCanvas();
   }
 
   initHandlers() {
-    this.socket.addEventListener("message", this.messageHandler);
+    if (!this.guestMode && this.socket) {
+      this.socket.addEventListener("message", this.messageHandler);
+    }
   }
 
   messageHandler = (event: MessageEvent) => {
+    if (this.guestMode) return; // Skip in guest mode
     const message = JSON.parse(event.data);
     if (message.type === "chat") {
       const parsedShape = JSON.parse(message.message);
-      // Don't mark incoming shapes as persistent
       this.existingShapes.push(parsedShape);
       this.clearCanvas();
     }
@@ -287,9 +285,6 @@ export class Game {
     this.clearCanvas();
   }
   exportAsPNG(): string {
-    this.ctx.save(); // Save current transformation state
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transformations to render the full canvas
-
     // Create a temporary canvas with the same dimensions
     const tempCanvas = document.createElement("canvas");
     const tempCtx = tempCanvas.getContext("2d")!;
@@ -302,8 +297,6 @@ export class Game {
     tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
     tempCtx.drawImage(this.canvas, 0, 0); // Draw the current canvas content onto the temp canvas
-
-    this.ctx.restore(); // Restore the original transformation
 
     return tempCanvas.toDataURL("image/png");
   }
@@ -322,7 +315,7 @@ export class Game {
           this.existingShapes.splice(index, 1);
           // Send delete message to server
           if (shape.id) {
-            this.socket.send(
+            this.socket?.send(
               JSON.stringify({
                 type: "delete_message",
                 roomId: Number(this.roomId),
@@ -337,7 +330,8 @@ export class Game {
       lastOperation.shapes.forEach((shape) => {
         this.existingShapes.push(shape);
         // Send add message to server
-        if (shape.id) {
+        if (shape.id && !this.guestMode && this.socket) {
+          // Only send to server if not in guest mode
           this.socket.send(
             JSON.stringify({
               type: "chat",
@@ -345,10 +339,15 @@ export class Game {
               roomId: Number(this.roomId),
             })
           );
+        } else if (this.guestMode) {
+          this.saveGuestCanvasData(); // Save to localStorage in guest mode
         }
       });
     }
     this.redoStack.push(lastOperation);
+    if (this.guestMode) {
+      this.saveGuestCanvasData();
+    }
     this.clearCanvas();
   }
 
@@ -363,7 +362,8 @@ export class Game {
       operationToRedo.shapes.forEach((shape) => {
         this.existingShapes.push(shape);
         // Send add message to server
-        if (shape.id) {
+        if (shape.id && !this.guestMode && this.socket) {
+          // Only send to server if not in guest mode
           this.socket.send(
             JSON.stringify({
               type: "chat",
@@ -371,6 +371,8 @@ export class Game {
               roomId: Number(this.roomId),
             })
           );
+        } else if (this.guestMode) {
+          this.saveGuestCanvasData(); // Save to localStorage in guest mode
         }
       });
     } else if (operationToRedo.type === "delete") {
@@ -380,7 +382,7 @@ export class Game {
         if (index >= 0) {
           this.existingShapes.splice(index, 1);
           // Send delete message to server
-          if (shape.id) {
+          if (shape.id && !this.guestMode && this.socket) {
             this.socket.send(
               JSON.stringify({
                 type: "delete_message",
@@ -394,6 +396,11 @@ export class Game {
     }
 
     this.operationsStack.push(operationToRedo);
+
+    if (this.guestMode) {
+      this.saveGuestCanvasData();
+    }
+
     this.clearCanvas();
   }
 
@@ -409,20 +416,39 @@ export class Game {
     this.redoStack = [];
   }
 
+  saveGuestCanvasData() {
+    if (this.guestMode) {
+      localStorage.setItem(
+        "guestCanvasData",
+        JSON.stringify(this.existingShapes)
+      );
+    }
+  }
+
   mouseDownHandler = (e: MouseEvent) => {
+    // Only proceed with left click (button 0) for most tools
+    // or middle click (button 1) for panning
+    if (e.button !== 0 && e.button !== 1 && this.selectedTool !== "pan") {
+      return;
+    }
+
+    // For middle mouse button (wheel),disable panning only on right click
+    const isPanning =
+      (e.button !== 2 && this.selectedTool === "pan") || e.button === 1;
     this.clicked = true;
-    // this.startX = e.clientX;
-    // this.startY = e.clientY;
     this.startX = (e.clientX - this.offsetX) / this.scale;
     this.startY = (e.clientY - this.offsetY) / this.scale;
 
-    if (this.selectedTool === "pan") {
+    if (isPanning) {
+      console.log("Middle mouse button clicked and panning now");
+
       this.isDragging = true;
       document.body.style.cursor = "grabbing";
       this.lastX = e.clientX;
       this.lastY = e.clientY;
       return;
     }
+
     if (this.selectedTool === "eraser") {
       const eraserRadius = 8;
       const transformedX = (e.clientX - this.offsetX) / this.scale;
@@ -517,13 +543,15 @@ export class Game {
 
         if (!shouldKeep) {
           shapesToDelete.push(element);
-          this.socket.send(
-            JSON.stringify({
-              type: "delete_message",
-              roomId: Number(this.roomId),
-              messageId: element.id,
-            })
-          );
+          if (!this.guestMode && this.socket) {
+            this.socket.send(
+              JSON.stringify({
+                type: "delete_message",
+                roomId: Number(this.roomId),
+                messageId: element.id,
+              })
+            );
+          }
         }
         return shouldKeep;
       });
@@ -534,15 +562,39 @@ export class Game {
           type: "delete",
           shapes: shapesToDelete,
         });
+
         this.clearRedoStack();
+
+        if (this.guestMode) {
+          this.saveGuestCanvasData();
+        }
       }
       this.clearCanvas();
       return;
     }
   };
   mouseUpHandler = (e: MouseEvent) => {
+    // Only handle left or middle mouse button releases
+    if (e.button !== 0 && e.button !== 1) {
+      return;
+    }
     this.isDragging = false;
     this.clicked = false;
+
+    // If it was a middle mouse button (wheel) for panning, just reset cursor
+    if (e.button === 1) {
+      // Reset cursor based on the currently selected tool
+      if (this.selectedTool === "text") {
+        document.body.style.cursor = "text";
+      } else if (this.selectedTool === "eraser") {
+        document.body.style.cursor = "url('/circle.png'), auto";
+      } else if (this.selectedTool === "pan") {
+        document.body.style.cursor = "grab";
+      } else {
+        document.body.style.cursor = "crosshair";
+      }
+      return;
+    }
 
     const transformedX = (e.clientX - this.offsetX) / this.scale;
     const transformedY = (e.clientY - this.offsetY) / this.scale;
@@ -555,8 +607,6 @@ export class Game {
     if (selectedTool === "rectangle") {
       newShape = {
         id: generateId(),
-        userId: this.userId,
-        persistent: false,
         shape: {
           type: "rectangle",
           strokeColor: this.strokeColor,
@@ -570,8 +620,6 @@ export class Game {
       const radius = Math.sqrt(height ** 2 + width ** 2) / 2;
       newShape = {
         id: generateId(),
-        userId: this.userId,
-        persistent: false,
         shape: {
           type: "circle",
           strokeColor: this.strokeColor,
@@ -583,8 +631,6 @@ export class Game {
     } else if (selectedTool === "line") {
       newShape = {
         id: generateId(),
-        userId: this.userId,
-        persistent: false,
         shape: {
           type: "line",
           strokeColor: this.strokeColor,
@@ -597,8 +643,6 @@ export class Game {
     } else if (selectedTool === "pencil" && this.currentPath.length > 0) {
       newShape = {
         id: generateId(),
-        userId: this.userId,
-        persistent: false,
         shape: {
           type: "pencil",
           strokeColor: this.strokeColor,
@@ -612,13 +656,18 @@ export class Game {
         shapes: [newShape],
       });
       this.clearRedoStack(); // Clear redo stack when new shape is added
-      this.socket.send(
-        JSON.stringify({
-          type: "chat",
-          message: JSON.stringify(newShape),
-          roomId: Number(this.roomId),
-        })
-      );
+      if (!this.guestMode && this.socket) {
+        // Only send to server if not in guest mode
+        this.socket.send(
+          JSON.stringify({
+            type: "chat",
+            message: JSON.stringify(newShape),
+            roomId: Number(this.roomId),
+          })
+        );
+      } else if (this.guestMode) {
+        this.saveGuestCanvasData(); // Save to localStorage in guest mode
+      }
       return; // Exit early for pencil tool
     } else if (selectedTool === "pan") {
       document.body.style.cursor = "grab";
@@ -631,15 +680,21 @@ export class Game {
       type: "add",
       shapes: [newShape],
     });
-    this.clearRedoStack(); // Clear redo stack when new shape is added
 
-    this.socket.send(
-      JSON.stringify({
-        type: "chat",
-        message: JSON.stringify(newShape),
-        roomId: Number(this.roomId),
-      })
-    );
+    this.clearRedoStack();
+
+    if (!this.guestMode && this.socket) {
+      // Only send to server if not in guest mode
+      this.socket.send(
+        JSON.stringify({
+          type: "chat",
+          message: JSON.stringify(newShape),
+          roomId: Number(this.roomId),
+        })
+      );
+    } else if (this.guestMode) {
+      this.saveGuestCanvasData(); // Save to localStorage in guest mode
+    }
 
     this.clearCanvas();
   };
@@ -701,18 +756,19 @@ export class Game {
 
   initMouseHandlers() {
     this.canvas.addEventListener("mousedown", this.mouseDownHandler);
-
     this.canvas.addEventListener("mouseup", this.mouseUpHandler);
-
     this.canvas.addEventListener("mousemove", this.mouseMoveHandler);
+    this.canvas.addEventListener("contextmenu", (e) => e.preventDefault()); // Prevent right-click context menu
   }
 
   destroy() {
     this.canvas.removeEventListener("mousedown", this.mouseDownHandler);
-
     this.canvas.removeEventListener("mouseup", this.mouseUpHandler);
-
     this.canvas.removeEventListener("mousemove", this.mouseMoveHandler);
-    this.socket.removeEventListener("message", this.messageHandler);
+    this.socket?.removeEventListener("message", this.messageHandler);
+    // Save guest data when destroying
+    if (this.guestMode) {
+      this.saveGuestCanvasData();
+    }
   }
 }

@@ -35,7 +35,7 @@ export default async function DashboardPage() {
     username && username.charAt(0).toUpperCase() + username.slice(1);
 
   if (!session?.accessToken) {
-    redirect("/signin");
+    redirect("/");
   }
 
   const rooms = await getRooms(session?.accessToken);

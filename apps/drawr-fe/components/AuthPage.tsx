@@ -3,19 +3,35 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Button } from "@repo/ui/button";
 import Link from "next/link";
-
 import { HTTP_BACKEND } from "@/config";
 import axios from "axios";
+import {
+  getGuestUser,
+  clearAllGuestData,
+  exportDrawingsFromLocalStorage,
+} from "@/utils/guestUser";
 
 export function AuthPage({ isSignin }: { isSignin: boolean }) {
   const [error, setError] = useState<string>("");
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
+  const searchParams = useSearchParams();
+  const fromGuest = searchParams.get("from") === "guest";
+  const [guestData, setGuestData] = useState<any>(null);
 
+  // Check if user is coming from guest mode
+  useEffect(() => {
+    if (fromGuest) {
+      const guestUser = getGuestUser();
+      if (guestUser) {
+        setGuestData(guestUser);
+      }
+    }
+  }, [fromGuest]);
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsPending(true);
@@ -25,12 +41,13 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
     if (!isSignin) {
       try {
-        await axios.post(`${HTTP_BACKEND}/signup`, {
+        const signupData = {
           email,
           password,
           username: email.split("@")[0],
-        });
+        };
 
+        await axios.post(`${HTTP_BACKEND}/signup`, signupData);
         // After successful signup, sign in
         await signInUser(email, password);
       } catch (error: any) {
@@ -67,16 +84,75 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
       setError(result.error);
       setIsPending(false);
     } else {
-      router.push("/dashboard");
+      // If coming from guest mode, redirect to the guest canvas
+      if (fromGuest && guestData) {
+        // Get the token from the session
+        const session = await fetch("/api/auth/session").then((res) =>
+          res.json()
+        );
+        if (session?.accessToken) {
+          // Convert the guest room
+          await convertGuestRoom(session.accessToken, guestData.id.toString());
+          // Redirect to the guest canvas (which is now a regular room)
+          router.push(`/canvas/guest-${guestData.id}`);
+        } else {
+          router.push("/dashboard");
+        }
+      } else {
+        router.push("/dashboard");
+      }
     }
   };
 
   const handleGoogleSignIn = async () => {
-    await signIn("google", { callbackUrl: "/dashboard" });
+    const guestId = fromGuest && guestData ? guestData.id.toString() : null;
+    const callbackUrl = guestId
+      ? `/canvas/guest-${guestId}?convert=true`
+      : "/dashboard";
+
+    await signIn("google", { callbackUrl });
+  };
+  const convertGuestRoom = async (token: string, guestId: string) => {
+    try {
+      const convertResponse = await axios.post(
+        `${HTTP_BACKEND}/convert-guest-room`,
+        { guestId },
+        { headers: { Authorization: token } }
+      );
+      const roomId = convertResponse.data.roomId;
+      console.log("Converted room ID in auth:", roomId);
+
+      // Get drawings from local storage
+      const drawings = exportDrawingsFromLocalStorage();
+      console.log("Importing drawings:", drawings);
+
+      if (drawings.length > 0) {
+        // Import drawings to the new
+        await axios.post(
+          `${HTTP_BACKEND}/import-guest-drawings`,
+          {
+            roomId,
+            drawings,
+          },
+          { headers: { Authorization: token } }
+        );
+      }
+      // Clear guest data after successful conversion
+      clearAllGuestData();
+    } catch (error) {
+      console.error("Error converting guest room:", error);
+    }
   };
 
   return (
     <div className="w-screen h-screen flex justify-center items-center bg-neutral-900">
+      {fromGuest && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-lg text-white">
+          {isSignin
+            ? "Sign in to save your guest drawing"
+            : "Sign up to save your guest drawing"}
+        </div>
+      )}
       <form onSubmit={handleSubmit}>
         <input
           type="hidden"
@@ -162,14 +238,20 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
               {isSignin ? (
                 <p>
                   Don&apos;t have an account?{" "}
-                  <Link href="/signup" className="text-white hover:underline">
+                  <Link
+                    href={fromGuest ? "/signup?from=guest" : "/signup"}
+                    className="text-white hover:underline"
+                  >
                     Sign up
                   </Link>
                 </p>
               ) : (
                 <p>
                   Already have an account?{" "}
-                  <Link href="/signin" className="text-white hover:underline">
+                  <Link
+                    href={fromGuest ? "/signin?from=guest" : "/signin"}
+                    className="text-white hover:underline"
+                  >
                     Sign in
                   </Link>
                 </p>

@@ -85,6 +85,7 @@ export const authOptions: NextAuthOptions = {
     },
     async signIn(params) {
       const { user, account } = params;
+
       if (account?.provider === "google") {
         try {
           const response = await axios.post(`${HTTP_BACKEND}/google-auth`, {
@@ -95,6 +96,7 @@ export const authOptions: NextAuthOptions = {
 
           user.token = response.data.token;
           user.id = response.data.userId;
+
           return true;
         } catch (error) {
           console.log("Google authentication error: ", error);

@@ -10,14 +10,17 @@ import {
   HandIcon,
   MinusIcon,
   PlusIcon,
-  HouseIcon,
   FullscreenIcon,
   Undo2Icon,
   Redo2Icon,
+  ArrowLeftIcon,
+  XIcon,
+  ShareIcon,
 } from "lucide-react";
 import { Game } from "@/draw/game";
 import { usePageSize } from "@/hooks/usePagesize";
 import { useRouter } from "next/navigation";
+import { GuestUser } from "@/utils/guestUser";
 
 type Tool =
   | "circle"
@@ -31,11 +34,13 @@ type Tool =
 export function CanvasComponent({
   roomId,
   socket,
-  currentUserId
+  isGuestMode = false,
+  guestUser = null,
 }: {
   roomId: string;
-  socket: WebSocket;
-  currentUserId: string;
+  socket: WebSocket | null;
+  isGuestMode?: boolean;
+  guestUser?: GuestUser | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<Game | null>(null);
@@ -44,6 +49,7 @@ export function CanvasComponent({
   const zoomOnScroll = false; // Set to true to set zoom on scroll
   const router = useRouter();
   const [gameInitialized, setGameInitialized] = useState(false);
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
 
   useEffect(() => {
     gameRef.current?.setStrokeColor(selectedColor);
@@ -164,8 +170,8 @@ export function CanvasComponent({
         canvasRef.current,
         roomId,
         socket,
-        currentUserId,
-        zoomOnScroll
+        zoomOnScroll,
+        isGuestMode
       );
       // Set the initialized state to true
       setGameInitialized(true);
@@ -173,7 +179,52 @@ export function CanvasComponent({
     return () => {
       gameRef.current?.destroy();
     };
-  }, [roomId, socket, zoomOnScroll, currentUserId]);
+  }, [roomId, socket, zoomOnScroll, isGuestMode]);
+
+  // Add a signup prompt modal
+  const SignupPrompt = () => {
+    if (!showSignupPrompt) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm cursor-default">
+        <div className="bg-black/90 p-8 rounded-2xl max-w-md w-full border border-gray-800 shadow-xl relative">
+          <button
+            onClick={() => setShowSignupPrompt(false)}
+            className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors"
+            aria-label="Close"
+          >
+            <XIcon size={18} />
+          </button>
+
+          <h2 className="text-2xl font-medium text-white mb-4">
+            Share your drawing
+          </h2>
+          <p className="text-white/60 mb-8 leading-relaxed">
+            You are currently drawing as{" "}
+            <strong className="text-white/90">
+              {guestUser?.username || "Guest"}
+            </strong>
+            . To share your drawing with others or save it to your account, you
+            will need to sign up. Your drawing will be preserved.
+          </p>
+          <div className="flex gap-4">
+            <a
+              href="/signup?from=guest"
+              className="bg-white text-black px-5 py-3 rounded-xl font-medium flex-1 hover:bg-gray-200 transition-all text-center"
+            >
+              Sign Up
+            </a>
+            <a
+              href="/signin?from=guest"
+              className="bg-transparent border border-gray-700 text-white/90 px-5 py-3 rounded-xl flex-1 hover:bg-white/5 transition-all text-center"
+            >
+              Sign In
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -212,6 +263,15 @@ export function CanvasComponent({
       // Handle Ctrl+H for back to dashboard
       if (e.ctrlKey && e.key === "h") {
         e.preventDefault();
+        // Send leave_room message before navigating
+        if (gameRef.current) {
+          socket?.send(
+            JSON.stringify({
+              type: "leave_room",
+              roomId: Number(roomId),
+            })
+          );
+        }
         router.push("/dashboard");
         document.body.style.cursor = "default";
         return;
@@ -290,11 +350,53 @@ export function CanvasComponent({
         selectedTool={selectedTool}
         setSelectedTool={setSelectedTool}
         handleDownload={handleDownload}
-        router={router}
       />
       <div className="fixed top-[5.5rem] left-1/2 -translate-x-1/2 text-white/50 text-sm">
         {toolDescriptions[selectedTool]}
       </div>
+      {/* Dashboard Navigation */}
+      <div className="fixed top-4 left-4 z-10">
+        <div className="bg-white/5 backdrop-blur-md rounded-xl border border-white/20 transition-all duration-300 hover:bg-white/10">
+          <IconButton
+            icon={<ArrowLeftIcon size={20} />}
+            onClick={() => {
+              // Send leave_room message before navigating
+              if (gameRef) {
+                socket?.send(
+                  JSON.stringify({
+                    type: "leave_room",
+                    roomId: Number(roomId),
+                  })
+                );
+              }
+              router.push("/dashboard");
+              document.body.style.cursor = "default";
+            }}
+            title="Back to Dashboard — Ctrl+H"
+          />
+        </div>
+      </div>
+      {/* Share Button (only in guest mode) */}
+      {isGuestMode && (
+        <div className="fixed top-4 right-4 z-10 cursor-default">
+          <div className="bg-white/5 backdrop-blur-md rounded-xl border border-white/20 transition-all duration-300 hover:bg-white/10 flex items-center h-10">
+            <div className="flex items-center px-3 py-2 text-white/70">
+              <span className="text-sm mr-1">
+                Drawing as <strong>{guestUser?.username || "Guest"}</strong>
+              </span>
+            </div>
+            <div className="h-full border-l border-white/10">
+              <IconButton
+                icon={<ShareIcon size={18} />}
+                onClick={() => setShowSignupPrompt(true)}
+                title="Share your drawing"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {isGuestMode && <SignupPrompt />}
+
       <ColorBar
         selectedColor={selectedColor}
         setSelectedColor={setSelectedColor}
@@ -313,12 +415,10 @@ function Topbar({
   selectedTool,
   setSelectedTool,
   handleDownload,
-  router,
 }: {
   selectedTool: Tool;
   setSelectedTool: (shape: Tool) => void;
   handleDownload: () => void;
-  router: ReturnType<typeof useRouter>;
 }) {
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 flex gap-4 items-center bg-white/5 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20 transition-all duration-300 cursor-default">
@@ -391,15 +491,6 @@ function Topbar({
         onClick={handleDownload}
         keybind="^S"
         title="Save current view as PNG — Ctrl+S"
-      />
-      <IconButton
-        icon={<HouseIcon />}
-        onClick={() => {
-          router.push("/dashboard");
-          document.body.style.cursor = "default";
-        }}
-        keybind="^H"
-        title="Back to Dashboard — Ctrl+H"
       />
     </div>
   );
