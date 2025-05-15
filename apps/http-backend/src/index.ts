@@ -321,6 +321,127 @@ app
     }
   });
 
+app.post("/convert-guest-room", authMiddleware, async (req, res) => {
+  const { guestId } = req.body;
+  const userId = req.userId;
+
+  if (!guestId) {
+    res.status(400).json({ message: "Guest ID is required" });
+  }
+
+  try {
+    const guestRoomSlug = `guest-${guestId}`;
+
+    // Check if a room with this slug already exists
+    const existingRoom = await prismaClient.room.findUnique({
+      where: { slug: guestRoomSlug },
+    });
+
+    if (existingRoom) {
+      // If room exists, check if user is already a member
+      const userRoom = await prismaClient.userRooms.findUnique({
+        where: {
+          userId_roomId: {
+            userId: userId,
+            roomId: existingRoom.id,
+          },
+        },
+      });
+
+      if (!userRoom) {
+        // Add user to the room if not already a member
+        await prismaClient.userRooms.create({
+          data: {
+            userId: userId,
+            roomId: existingRoom.id,
+          },
+        });
+      }
+
+      res.json({
+        message: "Room converted successfully",
+        roomId: existingRoom.id,
+      });
+    } else {
+      // Create a new room for the user with the guest's room slug
+      const room = await prismaClient.room.create({
+        data: {
+          slug: guestRoomSlug,
+          adminId: userId,
+        },
+      });
+
+      // Add the user to the room
+      await prismaClient.userRooms.create({
+        data: {
+          userId: userId,
+          roomId: room.id,
+        },
+      });
+
+      res.json({
+        message: "Room created successfully",
+        roomId: room.id,
+      });
+    }
+  } catch (error) {
+    console.error("Error converting guest room:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+});
+
+app.post("/import-guest-drawings", authMiddleware, async (req, res) => {
+  const { roomId, drawings } = req.body;
+  const userId = req.userId;
+
+  if (!roomId || !drawings || !Array.isArray(drawings)) {
+    res
+      .status(400)
+      .json({ message: "Room ID and drawings array are required" });
+    return;
+  }
+
+  try {
+    // Verify the room exists and user has access
+    const userRoom = await prismaClient.userRooms.findUnique({
+      where: {
+        userId_roomId: {
+          userId,
+          roomId: Number(roomId),
+        },
+      },
+    });
+
+    if (!userRoom) {
+      res.status(403).json({ message: "Not authorized to access this room" });
+      return;
+    }
+
+    // Import each drawing as a chat message
+    const chatPromises = drawings.map((drawing) => {
+      const message = JSON.stringify(drawing.shape);
+
+      return prismaClient.chat.create({
+        data: {
+          message,
+          userId,
+          roomId: Number(roomId),
+        },
+      });
+    });
+
+    await Promise.all(chatPromises);
+
+    res.json({
+      message: "Drawings imported successfully",
+      count: drawings.length,
+    });
+  } catch (error) {
+    console.error("Error importing guest drawings:", error);
+    res.status(500).json({ message: "Something went wrong" });
+  }
+});
+
 app.listen(3001, () => {
   console.log("HTTP server is listening on port 3001");
 });
