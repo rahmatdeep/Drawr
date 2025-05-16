@@ -1,0 +1,21 @@
+{
+  "name": "redis-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/index.js",
+    "dev": "pnpm run build && pnpm run start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*"
+  },
+  "dependencies": {
+    "@repo/db": "workspace:*",
+    "redis": "^5.0.1"
+  }
+}
