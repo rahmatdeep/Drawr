@@ -27,6 +27,12 @@ export function VoiceCallComponent({
   const [callParticipants, setCallParticipants] = useState<User[]>([]);
   const [isAudioReady, setIsAudioReady] = useState(false);
 
+  // Sound notification refs
+  const userJoinSoundRef = useRef<HTMLAudioElement | null>(null);
+  const userLeaveSoundRef = useRef<HTMLAudioElement | null>(null);
+  const userMuteSoundRef = useRef<HTMLAudioElement | null>(null);
+  const userUnmuteSoundRef = useRef<HTMLAudioElement | null>(null);
+
   // WebRTC related refs
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionsRef = useRef<{ [userId: string]: RTCPeerConnection }>(
@@ -37,6 +43,67 @@ export function VoiceCallComponent({
   // Negotiation state tracking
   const makingOfferRef = useRef<{ [userId: string]: boolean }>({});
   const ignoreOfferRef = useRef<{ [userId: string]: boolean }>({});
+
+  // Initialize sound notification refs
+  useEffect(() => {
+    userJoinSoundRef.current = new Audio("/sounds/join.mp3");
+    userLeaveSoundRef.current = new Audio("/sounds/leave.mp3");
+    userMuteSoundRef.current = new Audio("/sounds/mute.mp3");
+    userUnmuteSoundRef.current = new Audio("/sounds/unmute.mp3");
+
+    const soundVolume = 0.6;
+
+    userJoinSoundRef.current.volume = soundVolume;
+    userLeaveSoundRef.current.volume = soundVolume;
+    userMuteSoundRef.current.volume = soundVolume;
+    userUnmuteSoundRef.current.volume = soundVolume;
+
+    // Preload audio files
+    userJoinSoundRef.current.load();
+    userLeaveSoundRef.current.load();
+    userMuteSoundRef.current.load();
+    userUnmuteSoundRef.current.load();
+
+    return () => {
+      // Clean up audio elements
+      userJoinSoundRef.current = null;
+      userLeaveSoundRef.current = null;
+      userMuteSoundRef.current = null;
+      userUnmuteSoundRef.current = null;
+    };
+  }, []);
+
+  // Function to play notification sounds
+  const playNotificationSound = (
+    soundType: "join" | "leave" | "mute" | "unmute",
+    ignoreInCallCheck = false
+  ) => {
+    if (!isInCall && !ignoreInCallCheck) return;
+
+    let soundRef: React.MutableRefObject<HTMLAudioElement | null>;
+
+    switch (soundType) {
+      case "join":
+        soundRef = userJoinSoundRef;
+        break;
+      case "leave":
+        soundRef = userLeaveSoundRef;
+        break;
+      case "mute":
+        soundRef = userMuteSoundRef;
+        break;
+      case "unmute":
+        soundRef = userUnmuteSoundRef;
+        break;
+    }
+
+    if (soundRef.current) {
+      soundRef.current.currentTime = 0;
+      soundRef.current.play().catch((err) => {
+        console.warn("Could not play notification sound:", err);
+      });
+    }
+  };
 
   // Set up WebRTC audio
   useEffect(() => {
@@ -104,6 +171,8 @@ export function VoiceCallComponent({
           roomId: Number(roomId),
         })
       );
+      // Play mute/unmute sound
+      playNotificationSound(isMuted ? "mute" : "unmute");
     }
   }, [isMuted, socket, isInCall, roomId]);
 
@@ -144,6 +213,10 @@ export function VoiceCallComponent({
           if (isInCall && data.user) {
             setCallParticipants((prev) => {
               if (!prev.find((p) => p.userId === data.user.userId)) {
+                // Play join sound if it's not the current user
+                if (data.user.userId !== currentUserId) {
+                  playNotificationSound("join");
+                }
                 return [...prev, data.user];
               }
               return prev;
@@ -158,9 +231,14 @@ export function VoiceCallComponent({
 
         case "user_left_call":
           // Remove participant from the list
-          setCallParticipants((prev) =>
-            prev.filter((p) => p.userId !== data.userId)
-          );
+          setCallParticipants((prev) => {
+            const userExists = prev.some((p) => p.userId === data.userId);
+            if (userExists && data.userId !== currentUserId) {
+              // Play leave sound if it's not the current user
+              playNotificationSound("leave");
+            }
+            return prev.filter((p) => p.userId !== data.userId);
+          });
 
           // Close and clean up peer connection
           if (peerConnectionsRef.current[data.userId]) {
@@ -171,11 +249,15 @@ export function VoiceCallComponent({
 
         case "user_mute_changed":
           // Update mute status for a user
-          setCallParticipants((prev) =>
-            prev.map((p) =>
+          setCallParticipants((prev) => {
+            // Play mute/unmute sound if it's not the current user
+            if (data.userId !== currentUserId) {
+              playNotificationSound(data.isMuted ? "mute" : "unmute");
+            }
+            return prev.map((p) =>
               p.userId === data.userId ? { ...p, isMuted: data.isMuted } : p
-            )
-          );
+            );
+          });
           break;
 
         // WebRTC signaling
@@ -297,30 +379,6 @@ export function VoiceCallComponent({
 
     return peerConnection;
   };
-
-  // Create and send an offer
-  //   const createOffer = async (
-  //     targetUserId: string,
-  //     peerConnection: RTCPeerConnection
-  //   ) => {
-  //     try {
-  //       const offer = await peerConnection.createOffer();
-  //       await peerConnection.setLocalDescription(offer);
-
-  //       if (socket && socket.readyState === WebSocket.OPEN) {
-  //         socket.send(
-  //           JSON.stringify({
-  //             type: "webrtc_offer",
-  //             offer,
-  //             targetUserId,
-  //             roomId: Number(roomId),
-  //           })
-  //         );
-  //       }
-  //     } catch (error) {
-  //       console.error("Error creating offer:", error);
-  //     }
-  //   };
 
   // Handle incoming WebRTC offer
   const handleWebRTCOffer = async (data: any) => {
@@ -451,6 +509,8 @@ export function VoiceCallComponent({
         isMuted: false,
       })
     );
+    // Play join sound for self
+    playNotificationSound("join", true); // Bypass the isInCall check
   };
 
   // Leave the call
@@ -462,6 +522,8 @@ export function VoiceCallComponent({
           roomId: Number(roomId),
         })
       );
+      // Play leave sound for self
+      playNotificationSound("leave");
     }
 
     // Stop audio tracks
@@ -529,7 +591,6 @@ export function VoiceCallComponent({
           </button>
         )}
       </div>
-
       {/* Call Participants */}
       {isInCall && callParticipants.length > 0 && (
         <div className="bg-white/5 backdrop-blur-md text-gray-200 p-3 rounded-tl-lg rounded-bl-lg border border-r-0 border-white/20 shadow-md min-w-48">
@@ -551,13 +612,17 @@ export function VoiceCallComponent({
           </ul>
         </div>
       )}
-
       {/* Loading indicator */}
       {isInCall && !isAudioReady && (
         <div className="bg-gray-800 text-gray-200 p-3 rounded-lg shadow-md">
           <p className="text-sm">Connecting audio...</p>
         </div>
       )}
+      {/* Hidden audio elements for notification sounds */}
+      <audio ref={userJoinSoundRef} preload="auto" />
+      <audio ref={userLeaveSoundRef} preload="auto" />
+      <audio ref={userMuteSoundRef} preload="auto" />
+      <audio ref={userUnmuteSoundRef} preload="auto" />
     </div>
   );
 }
