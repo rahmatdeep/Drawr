@@ -67,8 +67,6 @@ export function RoomCanvasComponent({
 
           // Clear guest data after successful import
           clearAllGuestData();
-        } else {
-          console.log("No drawings to import");
         }
 
         setIsImporting(false);
@@ -94,10 +92,16 @@ export function RoomCanvasComponent({
       setCurrentUserId(String(user.id));
       return;
     }
+    // For non-guest mode, we need to set the userId immediately
+    if (userId) {
+      setCurrentUserId(userId);
+    }
 
-    if (!token) return;
+    if (!token) {
+      console.error("No token available for WebSocket connection");
+      return;
+    }
 
-    console.log("Initializing WebSocket connection");
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
@@ -108,9 +112,6 @@ export function RoomCanvasComponent({
           roomId: Number(roomId),
         })
       );
-
-      // Set current user ID from props or token
-      setCurrentUserId(userId || "");
     };
 
     ws.onmessage = (event) => {
