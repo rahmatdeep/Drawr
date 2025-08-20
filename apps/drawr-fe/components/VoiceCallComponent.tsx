@@ -26,6 +26,9 @@ export function VoiceCallComponent({
   const [isMuted, setIsMuted] = useState(false);
   const [callParticipants, setCallParticipants] = useState<User[]>([]);
   const [isAudioReady, setIsAudioReady] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<
+    "prompt" | "granted" | "denied" | "checking"
+  >("prompt");
 
   // Sound notification refs
   const userJoinSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -51,6 +54,8 @@ export function VoiceCallComponent({
     userMuteSoundRef.current = new Audio("/sounds/mute.mp3");
     userUnmuteSoundRef.current = new Audio("/sounds/unmute.mp3");
 
+    // Set volume for all sounds (0.0 to 1.0, where 1.0 is full volume)
+    // Adjust this value to make sounds quieter - 0.3 is a good starting point
     const soundVolume = 0.6;
 
     userJoinSoundRef.current.volume = soundVolume;
@@ -111,7 +116,6 @@ export function VoiceCallComponent({
 
     const initializeAudio = async () => {
       try {
-        // Request user media
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: false,
@@ -125,14 +129,27 @@ export function VoiceCallComponent({
         });
 
         setIsAudioReady(true);
+        setPermissionStatus("granted"); // Update permission status
 
         // Initialize audio context for visualizations if needed
         audioContextRef.current = new AudioContext();
-      } catch (err) {
-        console.error("Error accessing microphone:", err);
-        alert(
-          "Couldn't access your microphone. Please check your permissions."
-        );
+      } catch (err: any) {
+        console.error("Error accessing microphone during call setup:", err);
+
+        // Check if this is a permission error
+        if (
+          err.name === "NotAllowedError" ||
+          err.name === "PermissionDeniedError"
+        ) {
+          setPermissionStatus("denied");
+          alert(
+            "Microphone permission denied. Please enable microphone access in your browser settings."
+          );
+        } else {
+          alert(
+            `Couldn't access your microphone: ${err.message}. Please check your device settings.`
+          );
+        }
         leaveCall();
       }
     };
@@ -142,12 +159,17 @@ export function VoiceCallComponent({
     return () => {
       // Clean up audio when unmounting or leaving call
       if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
+        console.log("Cleaning up audio tracks...");
+        localStreamRef.current.getTracks().forEach((track) => {
+          console.log(`Stopping track: ${track.label}`);
+          track.stop();
+        });
         localStreamRef.current = null;
       }
 
       // Close audio context
       if (audioContextRef.current) {
+        console.log("Closing audio context");
         audioContextRef.current.close();
         audioContextRef.current = null;
       }
@@ -496,9 +518,92 @@ export function VoiceCallComponent({
     }
   };
 
+  // Check mic permissions
+  const checkMicrophonePermission = async () => {
+    try {
+      setPermissionStatus("checking");
+
+      // Try using the Permissions API first
+      const permissionResult = await navigator.permissions.query({
+        name: "microphone" as PermissionName,
+      });
+
+      permissionResult.onchange = () => {
+        setPermissionStatus(
+          permissionResult.state as "prompt" | "granted" | "denied"
+        );
+      };
+
+      setPermissionStatus(
+        permissionResult.state as "prompt" | "granted" | "denied"
+      );
+
+      // If permission is already granted, return true immediately
+      if (permissionResult.state === "granted") {
+        return true;
+      }
+
+      // If permission is prompt, we need to actually request access to verify
+      if (permissionResult.state === "prompt") {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+
+          // We don't need this stream now, so stop all tracks
+          stream.getTracks().forEach((track) => {
+            track.stop();
+          });
+
+          setPermissionStatus("granted");
+          return true;
+        } catch (err) {
+          console.error("Failed to get audio stream after prompt:", err);
+          setPermissionStatus("denied");
+          return false;
+        }
+      }
+
+      return (
+        (permissionResult.state as "granted" | "denied" | "prompt") ===
+        "granted"
+      );
+    } catch (error) {
+      console.error("Error with Permissions API:", error);
+
+      // Fall back to trying to access the microphone directly
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+
+        // We don't need this stream now, so stop all tracks
+        stream.getTracks().forEach((track) => {
+          track.stop();
+        });
+
+        setPermissionStatus("granted");
+        return true;
+      } catch (err) {
+        console.error("Microphone access denied in fallback:", err);
+        setPermissionStatus("denied");
+        return false;
+      }
+    }
+  };
+
   // Join the call
-  const joinCall = () => {
+  const joinCall = async () => {
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    // Check permission first
+    const hasPermission = await checkMicrophonePermission();
+
+    if (!hasPermission) {
+      alert(
+        "Microphone permission is required to join the call. Please grant permission and try again."
+      );
+      return;
+    }
 
     setIsInCall(true);
 
@@ -558,6 +663,14 @@ export function VoiceCallComponent({
 
   return (
     <div className="flex flex-col items-end gap-2 cursor-default">
+      {/* Permission denied warning */}
+      {permissionStatus === "denied" && (
+        <div className="bg-red-700/90 text-white p-3 rounded-tl-lg rounded-bl-lg border border-r-0 border-white/20 shadow-md">
+          <p className="text-sm">
+            Microphone access denied. Please enable it in your browser settings.
+          </p>
+        </div>
+      )}
       {/* Call Controls */}
       <div className="flex bg-white/5 backdrop-blur-md p-2 rounded-tl-full rounded-bl-full border border-r-0 border-white/20 shadow-md">
         {isInCall ? (
