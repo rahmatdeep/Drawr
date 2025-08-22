@@ -56,7 +56,7 @@ export function VoiceCallComponent({
 
     // Set volume for all sounds (0.0 to 1.0, where 1.0 is full volume)
     // Adjust this value to make sounds quieter - 0.3 is a good starting point
-    const soundVolume = 0.6;
+    const soundVolume = 0.3;
 
     userJoinSoundRef.current.volume = soundVolume;
     userLeaveSoundRef.current.volume = soundVolume;
@@ -85,7 +85,7 @@ export function VoiceCallComponent({
   ) => {
     if (!isInCall && !ignoreInCallCheck) return;
 
-    let soundRef: React.MutableRefObject<HTMLAudioElement | null>;
+    let soundRef: React.RefObject<HTMLAudioElement | null>;
 
     switch (soundType) {
       case "join":
@@ -101,7 +101,7 @@ export function VoiceCallComponent({
         soundRef = userUnmuteSoundRef;
         break;
     }
-
+    //sets playback time to 0 and plays the sound
     if (soundRef.current) {
       soundRef.current.currentTime = 0;
       soundRef.current.play().catch((err) => {
@@ -274,7 +274,7 @@ export function VoiceCallComponent({
           setCallParticipants((prev) => {
             // Play mute/unmute sound if it's not the current user
             if (data.userId !== currentUserId) {
-              playNotificationSound(data.isMuted ? "mute" : "unmute");
+              // playNotificationSound(data.isMuted ? "mute" : "unmute");
             }
             return prev.map((p) =>
               p.userId === data.userId ? { ...p, isMuted: data.isMuted } : p
@@ -407,7 +407,7 @@ export function VoiceCallComponent({
     const { fromUserId, offer } = data;
 
     // Determine politeness based on user IDs
-    const isPolite = currentUserId < fromUserId;
+    const isPolite = currentUserId > fromUserId;
 
     console.log(`Received offer from ${fromUserId}, isPolite: ${isPolite}`);
 
