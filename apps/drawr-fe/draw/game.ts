@@ -497,7 +497,7 @@ export class Game {
               roomId: Number(this.roomId),
             })
           );
-        } 
+        }
       });
     } else if (
       lastOperation.type === "move" ||
@@ -572,7 +572,7 @@ export class Game {
               roomId: Number(this.roomId),
             })
           );
-        } 
+        }
       });
     } else if (operationToRedo.type === "delete") {
       // Re-delete the shapes
@@ -1639,7 +1639,7 @@ export class Game {
     // Select the newly created shape
     this.selectedShape = newShape;
     this.selectedShapeIndex = this.existingShapes.length - 1;
-    this.selectedTool = "select";
+    this.setTool("select");
     document.body.style.cursor = "pointer";
     this.clearCanvas();
   };

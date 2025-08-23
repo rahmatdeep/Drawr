@@ -54,7 +54,7 @@ export function CanvasComponent({
   const [gameInitialized, setGameInitialized] = useState(false);
   const [showSignupPrompt, setShowSignupPrompt] = useState(false);
   const [selectedShapeId, setSelectedShapeId] = useState<number | null>(null);
-  const [selectedTool, setSelectedTool] = useState<Tool>("pencil" as Tool);
+  const [selectedTool, setSelectedTool] = useState<Tool>("pencil");
   const [strokeWidth, setStrokeWidth] = useState<number>(1);
   const [fontSize, setFontSize] = useState<
     "small" | "medium" | "large" | "xlarge"
