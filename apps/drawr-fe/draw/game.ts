@@ -472,8 +472,8 @@ export class Game {
         if (index >= 0) {
           this.existingShapes.splice(index, 1);
           // Send delete message to server
-          if (shape.id) {
-            this.socket?.send(
+          if (shape.id && !this.guestMode && this.socket) {
+            this.socket.send(
               JSON.stringify({
                 type: "delete_message",
                 roomId: Number(this.roomId),
@@ -497,9 +497,7 @@ export class Game {
               roomId: Number(this.roomId),
             })
           );
-        } else if (this.guestMode) {
-          this.saveGuestCanvasData(); // Save to localStorage in guest mode
-        }
+        } 
       });
     } else if (
       lastOperation.type === "move" ||
@@ -574,9 +572,7 @@ export class Game {
               roomId: Number(this.roomId),
             })
           );
-        } else if (this.guestMode) {
-          this.saveGuestCanvasData(); // Save to localStorage in guest mode
-        }
+        } 
       });
     } else if (operationToRedo.type === "delete") {
       // Re-delete the shapes
@@ -1291,6 +1287,7 @@ export class Game {
     const isPanning =
       (e.button !== 2 && this.selectedTool === "pan") || e.button === 1;
     this.clicked = true;
+    //startX and startY are not used in panning
     this.startX = (e.clientX - this.offsetX) / this.scale;
     this.startY = (e.clientY - this.offsetY) / this.scale;
 
