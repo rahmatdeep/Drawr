@@ -120,11 +120,9 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
         { headers: { Authorization: token } }
       );
       const roomId = convertResponse.data.roomId;
-      console.log("Converted room ID in auth:", roomId);
 
       // Get drawings from local storage
       const drawings = exportDrawingsFromLocalStorage();
-      console.log("Importing drawings:", drawings);
 
       if (drawings.length > 0) {
         // Import drawings to the new
